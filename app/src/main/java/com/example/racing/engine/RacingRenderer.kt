@@ -1,0 +1,429 @@
+package com.example.racing.engine
+
+import android.opengl.GLES30
+import android.opengl.GLSurfaceView
+import com.example.racing.ai.OpponentAIController
+import com.example.racing.model.CameraView
+import com.example.racing.model.TrackId
+import com.example.racing.physics.VehiclePhysics
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.opengles.GL10
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+
+class RacingRenderer(
+    var playerVehicle: VehiclePhysics,
+    val aiOpponents: List<OpponentAIController>
+) : GLSurfaceView.Renderer {
+
+    var isShowroomMode: Boolean = false
+    var showroomOrbitAngleDeg: Float = 45f
+    var showroomElevationDeg: Float = 16f
+    var showroomZoomDistance: Float = 5.2f
+
+    var currentCameraView: CameraView = CameraView.CHASE_NEAR
+    var playerPaintColor: FloatArray = floatArrayOf(0.95f, 0.15f, 0.20f, 1.0f)
+    var graphicsQuality: String = "HIGH"
+
+    private var currentCarId: String = "apex_valkyrie"
+    private var currentTrackId: TrackId = TrackId.GRAND_PRIX
+
+    @Volatile private var pendingCarId: String? = null
+    @Volatile private var pendingTrackId: TrackId? = null
+
+    private var shader: Shader? = null
+    val carModels = mutableMapOf<String, CarMeshBuilder.CarModel>()
+    var playerCarModel: CarMeshBuilder.CarModel? = null
+        private set
+    var trackModel: TrackMeshBuilder.TrackModel? = null
+        private set
+    var particleSystem: ParticleSystem? = null
+        private set
+
+    private val projectionMatrix = Matrix4f()
+    private val viewMatrix = Matrix4f()
+    private val modelMatrix = Matrix4f()
+    private val vpMatrix = FloatArray(16)
+
+    private val currentCamPos = Vector3f(0f, 2.5f, -6f)
+    private val currentCamTarget = Vector3f(0f, 1f, 0f)
+
+    private var viewportWidth = 1
+    private var viewportHeight = 1
+    private var isGlInitialized = false
+
+    override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        GLES30.glClearColor(0.10f, 0.12f, 0.18f, 1.0f)
+        GLES30.glEnable(GLES30.GL_DEPTH_TEST)
+        GLES30.glDepthFunc(GLES30.GL_LEQUAL)
+        GLES30.glEnable(GLES30.GL_CULL_FACE)
+        GLES30.glCullFace(GLES30.GL_BACK)
+        GLES30.glEnable(GLES30.GL_BLEND)
+        GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE_MINUS_SRC_ALPHA)
+
+        // Clean any stale references
+        shader?.release()
+        carModels.values.forEach { it.release() }
+        carModels.clear()
+        trackModel?.release()
+        particleSystem?.release()
+
+        shader = Shader(Shader.DEFAULT_VERTEX_SHADER, Shader.DEFAULT_FRAGMENT_SHADER)
+
+        // Cache all 3 vehicle models to enable multi-car diverse grid
+        carModels["apex_valkyrie"] = CarMeshBuilder.buildCarModel("apex_valkyrie")
+        carModels["apex_spirit_86"] = CarMeshBuilder.buildCarModel("apex_spirit_86")
+        carModels["apex_monza_v10"] = CarMeshBuilder.buildCarModel("apex_monza_v10")
+
+        playerCarModel = carModels[currentCarId] ?: carModels["apex_valkyrie"]
+        trackModel = TrackMeshBuilder.buildTrack(currentTrackId)
+        particleSystem = ParticleSystem()
+
+        isGlInitialized = true
+    }
+
+    override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
+        viewportWidth = width
+        viewportHeight = height
+        GLES30.glViewport(0, 0, width, height)
+
+        val aspect = width.toFloat() / height.toFloat().coerceAtLeast(1f)
+        projectionMatrix.identity().perspective(62f, aspect, 0.2f, 1200f)
+    }
+
+    fun setCar(carId: String) {
+        currentCarId = carId
+        pendingCarId = carId
+    }
+
+    fun setTrack(trackId: TrackId) {
+        currentTrackId = trackId
+        pendingTrackId = trackId
+    }
+
+    override fun onDrawFrame(gl: GL10?) {
+        // Safe thread synchronization: Handle pending model swaps on GL thread
+        pendingCarId?.let { newCarId ->
+            playerCarModel = carModels[newCarId] ?: carModels["apex_valkyrie"]
+            pendingCarId = null
+        }
+        pendingTrackId?.let { newTrackId ->
+            trackModel?.release()
+            trackModel = TrackMeshBuilder.buildTrack(newTrackId)
+            pendingTrackId = null
+        }
+
+        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
+
+        val activeShader = shader ?: return
+        val activeCar = playerCarModel ?: return
+        val activeTrack = trackModel ?: return
+
+        activeShader.use()
+
+        // 1. Environmental Lighting
+        val lighting = activeTrack.lightingConfig
+        activeShader.setVec3("u_SunDirection", lighting.sunDirection[0], lighting.sunDirection[1], lighting.sunDirection[2])
+        activeShader.setVec3("u_SunColor", lighting.sunColor[0], lighting.sunColor[1], lighting.sunColor[2])
+        activeShader.setVec3("u_SkyAmbient", lighting.skyAmbient[0], lighting.skyAmbient[1], lighting.skyAmbient[2])
+        activeShader.setVec3("u_GroundAmbient", lighting.groundAmbient[0], lighting.groundAmbient[1], lighting.groundAmbient[2])
+
+        // Atmospheric Distance Fog
+        activeShader.setVec3("u_FogColor", lighting.fogColor[0], lighting.fogColor[1], lighting.fogColor[2])
+        activeShader.setFloat("u_FogNear", lighting.fogNear)
+        activeShader.setFloat("u_FogFar", lighting.fogFar)
+
+        // Wet Road Specular Sheen
+        val wetFactor = if (lighting.isWetRoad && graphicsQuality != "LOW") 1.0f else 0.0f
+        activeShader.setFloat("u_WetRoadActive", wetFactor)
+
+        // Camera Setup
+        if (isShowroomMode) {
+            setupShowroomCamera()
+        } else {
+            setupRacingCamera()
+        }
+
+        activeShader.setMat4("u_ProjectionMatrix", projectionMatrix.values)
+        activeShader.setMat4("u_ViewMatrix", viewMatrix.values)
+        activeShader.setVec3("u_CameraPos", currentCamPos.x, currentCamPos.y, currentCamPos.z)
+
+        // 2. Render Track
+        if (!isShowroomMode) {
+            modelMatrix.identity()
+            activeShader.setMat4("u_ModelMatrix", modelMatrix.values)
+
+            // Terrain Scenery
+            activeShader.setMaterial(if (activeTrack.trackId == TrackId.ALPINE_PASS) Material.MOUNTAIN_ROCK else Material.GRASS)
+            activeTrack.environmentMesh.draw()
+
+            // Asphalt Road
+            activeShader.setMaterial(if (lighting.isWetRoad) Material.ASPHALT_WET else Material.ASPHALT_DRY)
+            activeTrack.roadMesh.draw()
+
+            // Apex Kerbs
+            activeShader.setMaterial(Material.CAR_PAINT_METALLIC)
+            activeTrack.kerbMesh.draw()
+
+            // Barriers & Gantry
+            activeShader.setMaterial(Material.ALLOY_RIM)
+            activeTrack.barrierMesh.draw()
+            activeTrack.gantryMesh.draw()
+        }
+
+        // 3. Render Player Vehicle & Wheels
+        renderVehicle(
+            vehicle = playerVehicle,
+            car = activeCar,
+            shader = activeShader,
+            paintColor = playerPaintColor
+        )
+
+        // 4. Render AI Opponents with their specific car models
+        if (!isShowroomMode) {
+            for (ai in aiOpponents) {
+                val aiCarModel = carModels[ai.profile.carId] ?: activeCar
+                renderVehicle(
+                    vehicle = ai.vehicle,
+                    car = aiCarModel,
+                    shader = activeShader,
+                    paintColor = ai.profile.carColor
+                )
+            }
+        }
+
+        // 5. Tire Smoke, Dust & Backfire Particles
+        if (!isShowroomMode && graphicsQuality != "LOW") {
+            particleSystem?.let { ps ->
+                // Player tire smoke / dust
+                val isSlipping = playerVehicle.tireSlipRl > 0.28f || playerVehicle.tireSlipRr > 0.28f || playerVehicle.handbrake || playerVehicle.isOffRoad
+                if (isSlipping && playerVehicle.speedKmh > 8f) {
+                    val pPos = playerVehicle.position
+                    val pHead = playerVehicle.headingAngleRad
+                    val sY = sin(pHead)
+                    val cY = cos(pHead)
+                    val rlX = pPos.x - cY * 0.85f - sY * 1.3f
+                    val rlZ = pPos.z + sY * 0.85f - cY * 1.3f
+                    val rrX = pPos.x + cY * 0.85f - sY * 1.3f
+                    val rrZ = pPos.z - sY * 0.85f - cY * 1.3f
+                    ps.emitTireSmoke(rlX, pPos.y, rlZ, playerVehicle.isOffRoad)
+                    ps.emitTireSmoke(rrX, pPos.y, rrZ, playerVehicle.isOffRoad)
+                }
+
+                // Exhaust backfire pop flame
+                if (playerVehicle.powertrain.exhaustBackfireTrigger) {
+                    val pPos = playerVehicle.position
+                    val pHead = playerVehicle.headingAngleRad
+                    val sY = sin(pHead)
+                    val cY = cos(pHead)
+                    val exX = pPos.x - sY * 2.1f
+                    val exZ = pPos.z - cY * 2.1f
+                    ps.emitExhaustFlame(exX, pPos.y + 0.28f, exZ)
+                }
+
+                // AI Opponents tire smoke
+                for (ai in aiOpponents) {
+                    if ((ai.vehicle.tireSlipRl > 0.35f || ai.vehicle.tireSlipRr > 0.35f) && ai.vehicle.speedKmh > 10f) {
+                        val aPos = ai.vehicle.position
+                        ps.emitTireSmoke(aPos.x, aPos.y, aPos.z, ai.vehicle.isOffRoad)
+                    }
+                }
+
+                ps.update(0.016f)
+
+                // Multiply Projection * View
+                android.opengl.Matrix.multiplyMM(vpMatrix, 0, projectionMatrix.values, 0, viewMatrix.values, 0)
+                ps.draw(vpMatrix, currentCamPos)
+            }
+        }
+    }
+
+    private fun setupShowroomCamera() {
+        val radOrbit = (showroomOrbitAngleDeg * (PI / 180.0)).toFloat()
+        val radElev = (showroomElevationDeg * (PI / 180.0)).toFloat()
+
+        val camX = showroomZoomDistance * cos(radElev) * sin(radOrbit)
+        val camY = showroomZoomDistance * sin(radElev) + 0.6f
+        val camZ = showroomZoomDistance * cos(radElev) * cos(radOrbit)
+
+        currentCamPos.set(camX, camY, camZ)
+        currentCamTarget.set(0f, 0.55f, 0f)
+
+        viewMatrix.identity().lookAt(
+            currentCamPos.x, currentCamPos.y, currentCamPos.z,
+            currentCamTarget.x, currentCamTarget.y, currentCamTarget.z,
+            0f, 1f, 0f
+        )
+    }
+
+    private fun setupRacingCamera() {
+        val carPos = playerVehicle.position
+        val heading = playerVehicle.headingAngleRad
+
+        val sinYaw = sin(heading)
+        val cosYaw = cos(heading)
+
+        val targetCamPos = when (currentCameraView) {
+            CameraView.CHASE_NEAR -> {
+                val dist = 5.2f + (playerVehicle.speedKmh * 0.008f)
+                val height = 1.85f - (playerVehicle.pitchAngleRad * 2f)
+                Vector3f(
+                    carPos.x - sinYaw * dist,
+                    carPos.y + height,
+                    carPos.z - cosYaw * dist
+                )
+            }
+            CameraView.CHASE_FAR -> {
+                val dist = 7.5f + (playerVehicle.speedKmh * 0.012f)
+                val height = 2.6f
+                Vector3f(
+                    carPos.x - sinYaw * dist,
+                    carPos.y + height,
+                    carPos.z - cosYaw * dist
+                )
+            }
+            CameraView.HOOD_BUMPER -> {
+                Vector3f(
+                    carPos.x + sinYaw * 1.35f,
+                    carPos.y + 0.68f,
+                    carPos.z + cosYaw * 1.35f
+                )
+            }
+            CameraView.COCKPIT -> {
+                val driverOffsetX = -0.22f
+                val worldOffsetX = driverOffsetX * cosYaw
+                val worldOffsetZ = -driverOffsetX * sinYaw
+                Vector3f(
+                    carPos.x - sinYaw * 0.12f + worldOffsetX,
+                    carPos.y + 0.86f,
+                    carPos.z - cosYaw * 0.12f + worldOffsetZ
+                )
+            }
+        }
+
+        val targetLookAt = when (currentCameraView) {
+            CameraView.HOOD_BUMPER -> {
+                Vector3f(
+                    carPos.x + sinYaw * 20f,
+                    carPos.y + 0.65f,
+                    carPos.z + cosYaw * 20f
+                )
+            }
+            CameraView.COCKPIT -> {
+                val driverOffsetX = -0.22f
+                val worldOffsetX = driverOffsetX * cosYaw
+                val worldOffsetZ = -driverOffsetX * sinYaw
+                Vector3f(
+                    carPos.x + sinYaw * 25f + worldOffsetX,
+                    carPos.y + 0.80f,
+                    carPos.z + cosYaw * 25f + worldOffsetZ
+                )
+            }
+            else -> {
+                Vector3f(
+                    carPos.x + sinYaw * 3.5f,
+                    carPos.y + 0.85f,
+                    carPos.z + cosYaw * 3.5f
+                )
+            }
+        }
+
+        val smoothFactor = if (currentCameraView == CameraView.HOOD_BUMPER || currentCameraView == CameraView.COCKPIT) 0.65f else 0.22f
+        currentCamPos.set(currentCamPos.lerp(targetCamPos, smoothFactor))
+        currentCamTarget.set(currentCamTarget.lerp(targetLookAt, smoothFactor))
+
+        viewMatrix.identity().lookAt(
+            currentCamPos.x, currentCamPos.y, currentCamPos.z,
+            currentCamTarget.x, currentCamTarget.y, currentCamTarget.z,
+            0f, 1f, 0f
+        )
+    }
+
+    private fun renderVehicle(
+        vehicle: VehiclePhysics,
+        car: CarMeshBuilder.CarModel,
+        shader: Shader,
+        paintColor: FloatArray
+    ) {
+        val carPos = vehicle.position
+        val headingDeg = (vehicle.headingAngleRad * (180f / PI.toFloat()))
+        val rollDeg = (vehicle.rollAngleRad * (180f / PI.toFloat()))
+        val pitchDeg = (vehicle.pitchAngleRad * (180f / PI.toFloat()))
+
+        // A. Contact Shadow Quad (grounding the car to the road)
+        if (graphicsQuality != "LOW") {
+            modelMatrix.identity()
+                .translate(carPos.x, carPos.y - 0.32f, carPos.z)
+                .rotate(headingDeg, 0f, 1f, 0f)
+            shader.setMat4("u_ModelMatrix", modelMatrix.values)
+            shader.setMaterial(Material.CONTACT_SHADOW)
+            shader.setFloat("u_BrakeIntensity", 0.0f)
+            car.shadowMesh.draw()
+        }
+
+        // B. Render Car Body
+        modelMatrix.identity()
+            .translate(carPos.x, carPos.y, carPos.z)
+            .rotate(headingDeg, 0f, 1f, 0f)
+            .rotate(rollDeg, 0f, 0f, 1f)
+            .rotate(pitchDeg, 1f, 0f, 0f)
+
+        shader.setMat4("u_ModelMatrix", modelMatrix.values)
+
+        val carPaint = Material(
+            color = paintColor,
+            specular = floatArrayOf(0.95f, 0.95f, 0.95f, 1.0f),
+            shininess = 90f,
+            metallic = 0.88f,
+            roughness = 0.12f,
+            clearcoat = 0.95f
+        )
+        shader.setMaterial(carPaint)
+
+        val brakeIntensity = if (vehicle.brake > 0.08f) vehicle.brake.coerceIn(0.6f, 1.0f) else 0.0f
+        shader.setFloat("u_BrakeIntensity", brakeIntensity)
+
+        car.bodyMesh.draw()
+
+        // C. Render Wheels (4 corners)
+        val steerDeg = (vehicle.currentSteerAngleRad * (180f / PI.toFloat()))
+        val spinDeg = (vehicle.wheelRotationAngle * (180f / PI.toFloat()))
+
+        for (i in 0 until 4) {
+            val wp = car.wheelPositions[i]
+            val isFront = (i < 2)
+            val isLeft = (i % 2 == 0)
+
+            val wheelMatrix = Matrix4f()
+                .translate(carPos.x, carPos.y, carPos.z)
+                .rotate(headingDeg, 0f, 1f, 0f)
+                .rotate(rollDeg, 0f, 0f, 1f)
+                .rotate(pitchDeg, 1f, 0f, 0f)
+                .translate(wp.x, wp.y + vehicle.suspensionCompression[i], wp.z)
+
+            if (isFront) {
+                wheelMatrix.rotate(steerDeg, 0f, 1f, 0f)
+            }
+
+            wheelMatrix.rotate(spinDeg, 1f, 0f, 0f)
+
+            if (!isLeft) {
+                wheelMatrix.rotate(180f, 0f, 1f, 0f)
+            }
+
+            shader.setMat4("u_ModelMatrix", wheelMatrix.values)
+            shader.setMaterial(Material.RUBBER_TIRE)
+            car.wheelMesh.draw()
+        }
+    }
+
+    fun release() {
+        shader?.release()
+        carModels.values.forEach { it.release() }
+        carModels.clear()
+        trackModel?.release()
+        particleSystem?.release()
+        isGlInitialized = false
+    }
+}

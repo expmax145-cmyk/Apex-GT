@@ -1,0 +1,6 @@
+{
+  "name": "Apex GT",
+  "description": "Realistic 3D mobile racing game with advanced vehicle physics, dynamic circuit tracks, AI opponents, and tuning garage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
