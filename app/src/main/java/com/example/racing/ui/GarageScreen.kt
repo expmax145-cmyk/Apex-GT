@@ -62,6 +62,7 @@ fun GarageScreen(
     val unlockedIds by viewModel.unlockedCarIds.collectAsState()
     val upgrades by viewModel.carUpgrades.collectAsState()
     val selectedColorIdx by viewModel.carColorIndex.collectAsState()
+    val selectedPaintFinish by viewModel.carPaintFinish.collectAsState()
 
     var activeTab by remember { mutableIntStateOf(0) } // 0: Vehicles, 1: Paint, 2: Performance
 
@@ -245,7 +246,9 @@ fun GarageScreen(
                     1 -> PaintTab(
                         selectedCar = selectedCar,
                         selectedColorIdx = selectedColorIdx,
-                        onSelectColor = { viewModel.selectCarColor(it) }
+                        selectedFinish = selectedPaintFinish,
+                        onSelectColor = { viewModel.selectCarColor(it) },
+                        onSelectFinish = { viewModel.selectCarPaintFinish(it) }
                     )
                     2 -> TuningTab(
                         viewModel = viewModel,

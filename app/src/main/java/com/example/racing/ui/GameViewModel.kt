@@ -93,6 +93,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _carColorIndex = MutableStateFlow(dataManager.getCarColorIndex(dataManager.selectedCarId))
     val carColorIndex: StateFlow<Int> = _carColorIndex.asStateFlow()
 
+    private val _carPaintFinish = MutableStateFlow(dataManager.getCarPaintFinish(dataManager.selectedCarId))
+    val carPaintFinish: StateFlow<com.example.racing.engine.PaintFinishType> = _carPaintFinish.asStateFlow()
+
     private val _controlType = MutableStateFlow(dataManager.controlType)
     val controlType: StateFlow<ControlType> = _controlType.asStateFlow()
 
@@ -124,6 +127,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         renderer = RacingRenderer(playerVehicle, aiOpponents).apply {
             isShowroomMode = false
             playerPaintColor = getActiveColor()
+            playerPaintFinish = dataManager.getCarPaintFinish(savedCar.id)
             graphicsQuality = dataManager.graphicsPreset
             setCar(savedCar.id)
             setTrack(dataManager.selectedTrackId)
@@ -494,6 +498,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         renderer?.isShowroomMode = true
         renderer?.setCar(_selectedCar.value.id)
         renderer?.playerPaintColor = getActiveColor()
+        renderer?.playerPaintFinish = _carPaintFinish.value
     }
 
     fun selectCar(car: CarDefinition) {
@@ -501,9 +506,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         dataManager.selectedCarId = car.id
         _carUpgrades.value = dataManager.getCarUpgrades(car.id)
         _carColorIndex.value = dataManager.getCarColorIndex(car.id)
+        _carPaintFinish.value = dataManager.getCarPaintFinish(car.id)
         applyCarConfiguration(car)
         renderer?.setCar(car.id)
         renderer?.playerPaintColor = getActiveColor()
+        renderer?.playerPaintFinish = _carPaintFinish.value
     }
 
     fun buySelectedCar(): Boolean {
@@ -528,6 +535,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             dataManager.setCarColorIndex(car.id, colorIdx)
             renderer?.playerPaintColor = car.availableColors[colorIdx].second
         }
+    }
+
+    fun selectCarPaintFinish(finish: com.example.racing.engine.PaintFinishType) {
+        val car = _selectedCar.value
+        _carPaintFinish.value = finish
+        dataManager.setCarPaintFinish(car.id, finish)
+        renderer?.playerPaintFinish = finish
     }
 
     fun upgradePart(partType: String): Boolean {

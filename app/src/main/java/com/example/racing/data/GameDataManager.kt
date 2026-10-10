@@ -62,6 +62,19 @@ class GameDataManager(context: Context) {
         prefs.edit().putInt("car_color_$carId", colorIdx).apply()
     }
 
+    fun getCarPaintFinish(carId: String): com.example.racing.engine.PaintFinishType {
+        val name = prefs.getString("car_paint_finish_$carId", com.example.racing.engine.PaintFinishType.METALLIC.name)
+        return try {
+            com.example.racing.engine.PaintFinishType.valueOf(name ?: com.example.racing.engine.PaintFinishType.METALLIC.name)
+        } catch (_: Exception) {
+            com.example.racing.engine.PaintFinishType.METALLIC
+        }
+    }
+
+    fun setCarPaintFinish(carId: String, finish: com.example.racing.engine.PaintFinishType) {
+        prefs.edit().putString("car_paint_finish_$carId", finish.name).apply()
+    }
+
     fun getCarUpgrades(carId: String): CarUpgradeState {
         val eng = prefs.getInt("upgrade_eng_$carId", 0)
         val tire = prefs.getInt("upgrade_tire_$carId", 0)

@@ -127,14 +127,41 @@ class ExampleUnitTest {
         assertNotNull(valkyrie.wheelMesh)
         assertNotNull(valkyrie.shadowMesh)
         assertEquals(4, valkyrie.wheelPositions.size)
+        assertTrue("Valkyrie body mesh must have rich automotive geometry", valkyrie.bodyMesh.vertexCount > 400)
+        assertTrue("Valkyrie wheel mesh must have detailed rim and tire geometry", valkyrie.wheelMesh.vertexCount > 150)
+        assertEquals(-0.84f, valkyrie.wheelPositions[0].x, 0.001f) // FL
+        assertEquals(0.84f, valkyrie.wheelPositions[1].x, 0.001f)  // FR
+        assertEquals(-0.86f, valkyrie.wheelPositions[2].x, 0.001f) // RL
+        assertEquals(0.86f, valkyrie.wheelPositions[3].x, 0.001f)  // RR
 
         val spirit = CarMeshBuilder.buildCarModel("apex_spirit_86")
         assertNotNull(spirit.bodyMesh)
+        assertNotNull(spirit.wheelMesh)
+        assertNotNull(spirit.shadowMesh)
         assertEquals(4, spirit.wheelPositions.size)
+        assertTrue("Spirit 86 body mesh must have rich automotive geometry", spirit.bodyMesh.vertexCount > 400)
+        assertTrue("Spirit 86 wheel mesh must have detailed rim and tire geometry", spirit.wheelMesh.vertexCount > 150)
+        assertEquals(-0.80f, spirit.wheelPositions[0].x, 0.001f) // FL
+        assertEquals(0.80f, spirit.wheelPositions[1].x, 0.001f)  // FR
+        assertEquals(-0.84f, spirit.wheelPositions[2].x, 0.001f) // RL
+        assertEquals(0.84f, spirit.wheelPositions[3].x, 0.001f)  // RR
 
         val monza = CarMeshBuilder.buildCarModel("apex_monza_v10")
         assertNotNull(monza.bodyMesh)
+        assertNotNull(monza.wheelMesh)
+        assertNotNull(monza.shadowMesh)
         assertEquals(4, monza.wheelPositions.size)
+        assertTrue("Monza V10 body mesh must have rich automotive geometry", monza.bodyMesh.vertexCount > 400)
+        assertTrue("Monza V10 wheel mesh must have detailed rim and tire geometry", monza.wheelMesh.vertexCount > 150)
+        assertEquals(-0.86f, monza.wheelPositions[0].x, 0.001f) // FL
+        assertEquals(0.86f, monza.wheelPositions[1].x, 0.001f)  // FR
+        assertEquals(-0.88f, monza.wheelPositions[2].x, 0.001f) // RL
+        assertEquals(0.88f, monza.wheelPositions[3].x, 0.001f)  // RR
+
+        // Verify resource cleanup
+        valkyrie.release()
+        spirit.release()
+        monza.release()
     }
 
     @Test

@@ -158,7 +158,7 @@ class Shader(
         """.trimIndent()
 
         val DEFAULT_FRAGMENT_SHADER = """#version 300 es
-            precision mediump float;
+            precision highp float;
 
             in vec3 v_WorldPos;
             in vec3 v_WorldNormal;
@@ -171,6 +171,13 @@ class Shader(
             uniform vec3 u_SkyAmbient;
             uniform vec3 u_GroundAmbient;
 
+            // Headlight illumination forward from car
+            uniform vec3 u_HeadlightPos;
+            uniform vec3 u_HeadlightDir;
+            uniform vec3 u_HeadlightColor;
+            uniform float u_HeadlightIntensity;
+
+            // Material properties
             uniform vec4 u_MaterialColor;
             uniform vec4 u_SpecularColor;
             uniform float u_Shininess;
@@ -179,84 +186,169 @@ class Shader(
             uniform float u_Clearcoat;
             uniform vec4 u_EmissionColor;
 
+            // Automotive dynamics
             uniform float u_BrakeIntensity;
             uniform float u_WetRoadActive;
 
+            // Atmospheric fog
             uniform vec3 u_FogColor;
             uniform float u_FogNear;
             uniform float u_FogFar;
 
             out vec4 fragColor;
 
+            const float PI = 3.14159265359;
+
+            // Cook-Torrance GGX Normal Distribution Function (NDF)
+            float distributionGGX(float NdotH, float roughness) {
+                float a = roughness * roughness;
+                float a2 = a * a;
+                float NdotH2 = NdotH * NdotH;
+                float num = a2;
+                float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+                denom = PI * denom * denom;
+                return num / max(denom, 0.0001);
+            }
+
+            // Smith GGX Geometry Shadowing Masking Term
+            float geometrySchlickGGX(float NdotV, float roughness) {
+                float r = (roughness + 1.0);
+                float k = (r * r) / 8.0;
+                float num = NdotV;
+                float denom = NdotV * (1.0 - k) + k;
+                return num / max(denom, 0.0001);
+            }
+
+            float geometrySmith(float NdotV, float NdotL, float roughness) {
+                float ggx2 = geometrySchlickGGX(NdotV, roughness);
+                float ggx1 = geometrySchlickGGX(NdotL, roughness);
+                return ggx1 * ggx2;
+            }
+
+            // Fresnel-Schlick with grazing angle reflection
+            vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+                return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+            }
+
+            // Pseudo-random noise for subtle metallic flake sparkle & asphalt micro-grain
+            float hash21(vec2 p) {
+                return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+
             void main() {
-                vec3 normal = normalize(v_WorldNormal);
-                vec3 lightDir = normalize(u_SunDirection);
-                vec3 viewDir = normalize(u_CameraPos - v_WorldPos);
-                vec3 halfDir = normalize(lightDir + viewDir);
+                vec3 N = normalize(v_WorldNormal);
+                vec3 V = normalize(u_CameraPos - v_WorldPos);
+                vec3 L = normalize(u_SunDirection);
+                vec3 H = normalize(L + V);
 
-                // Sky / Ground Ambient Hemisphere
-                float skyFactor = clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
-                vec3 ambient = mix(u_GroundAmbient, u_SkyAmbient, skyFactor);
+                float NdotL = max(dot(N, L), 0.0);
+                float NdotV = max(dot(N, V), 0.001);
+                float NdotH = max(dot(N, H), 0.0);
+                float VdotH = max(dot(V, H), 0.0);
 
-                // Energy-conserving diffuse N dot L
-                float NdotL = max(dot(normal, lightDir), 0.0);
-                float NdotV = max(dot(normal, viewDir), 0.001);
-                float NdotH = max(dot(normal, halfDir), 0.0);
-                float VdotH = max(dot(viewDir, halfDir), 0.0);
+                // --- 1. Base Albedo & Material Flake Texture ---
+                vec4 baseColor = u_MaterialColor * v_VertexColor;
+                vec3 albedo = baseColor.rgb;
 
-                vec3 diffuse = u_SunColor * NdotL * (1.0 - u_Metallic * 0.85);
+                // Subtle metallic flake sparkle for metallic car paint
+                if (u_Metallic > 0.4 && u_Clearcoat > 0.2) {
+                    float flakeNoise = hash21(floor(v_WorldPos.xz * 22.0) + floor(v_WorldPos.yy * 22.0));
+                    float flakeSparkle = pow(clamp(dot(reflect(-L, N), V), 0.0, 1.0), 16.0) * flakeNoise * 0.18;
+                    albedo += albedo * flakeSparkle;
+                }
 
-                // Cook-Torrance GGX Specular
-                float r = clamp(u_Roughness, 0.04, 1.0);
-                float a2 = r * r * r * r;
-                float dDenom = (NdotH * NdotH * (a2 - 1.0) + 1.0);
-                float D = a2 / max(3.14159 * dDenom * dDenom, 0.001);
+                // --- 2. Ambient Lighting with Sky/Ground Hemisphere & Indirect Fresnel ---
+                float skyFactor = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
+                vec3 ambientColor = mix(u_GroundAmbient, u_SkyAmbient, skyFactor);
 
-                // Schlick Fresnel
+                // Subdued reflection approximation in ambient
+                vec3 R = reflect(-V, N);
+                float envSkyFactor = clamp(R.y * 0.5 + 0.5, 0.0, 1.0);
+                vec3 envSkyReflection = mix(u_GroundAmbient * 1.2, u_SkyAmbient * 1.4, envSkyFactor);
+
+                // Dielectric vs Metallic base reflectivity
                 vec3 F0 = mix(vec3(0.04), u_SpecularColor.rgb, u_Metallic);
-                vec3 F = F0 + (1.0 - F0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
+                vec3 F_ambient = fresnelSchlick(NdotV, F0);
+                vec3 kD_ambient = (vec3(1.0) - F_ambient) * (1.0 - u_Metallic);
 
-                // Smith Geometry Term
-                float k = (r + 1.0) * (r + 1.0) / 8.0;
-                float G = (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
+                vec3 ambient = kD_ambient * albedo * ambientColor + envSkyReflection * F_ambient * (1.0 - u_Roughness);
 
-                vec3 specular = (D * F * G) / max(4.0 * NdotV * NdotL, 0.001);
-                specular = clamp(specular, 0.0, 3.5) * u_SunColor;
+                // --- 3. Direct Sun Lighting (Cook-Torrance Specular BRDF) ---
+                float r = clamp(u_Roughness, 0.04, 1.0);
+                float NDF = distributionGGX(NdotH, r);
+                float G = geometrySmith(NdotV, NdotL, r);
+                vec3 F = fresnelSchlick(VdotH, F0);
 
-                // Automotive Clearcoat Top Layer
+                vec3 numerator = NDF * G * F;
+                float denominator = 4.0 * NdotV * NdotL + 0.0001;
+                vec3 specularBRDF = numerator / denominator;
+
+                vec3 kS = F;
+                vec3 kD = (vec3(1.0) - kS) * (1.0 - u_Metallic);
+
+                vec3 directLight = (kD * albedo / PI + specularBRDF) * u_SunColor * NdotL;
+
+                // --- 4. Secondary Automotive Clearcoat Top Layer ---
+                vec3 clearcoatSpecular = vec3(0.0);
                 if (u_Clearcoat > 0.05) {
-                    float ccD = pow(NdotH, 120.0);
-                    vec3 ccF = vec3(0.04) + (1.0 - 0.04) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
-                    specular += ccF * ccD * u_Clearcoat * 1.2;
+                    // Smooth clearcoat has very low roughness (0.04)
+                    float ccNDF = distributionGGX(NdotH, 0.06);
+                    float ccG = geometrySmith(NdotV, NdotL, 0.15);
+                    vec3 ccF = fresnelSchlick(VdotH, vec3(0.04)); // Clearcoat resin F0 is ~0.04
+                    vec3 ccBRDF = (ccNDF * ccG * ccF) / (4.0 * NdotV * NdotL + 0.0001);
+                    clearcoatSpecular = ccBRDF * u_SunColor * NdotL * u_Clearcoat;
                 }
 
-                // Wet Road Anisotropic Sheen
-                if (u_WetRoadActive > 0.05 && normal.y > 0.6) {
-                    float wetF = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.0);
-                    vec3 wetReflection = mix(ambient, u_SunColor, 0.7) * wetF * u_WetRoadActive * 1.5;
-                    specular += wetReflection;
+                // --- 5. Forward Headlight Spotlight Illumination ---
+                vec3 headlightLight = vec3(0.0);
+                if (u_HeadlightIntensity > 0.01) {
+                    vec3 toPoint = v_WorldPos - u_HeadlightPos;
+                    float distHL = length(toPoint);
+                    if (distHL > 0.1 && distHL < 120.0) {
+                        vec3 hlDir = normalize(toPoint);
+                        float spotDot = dot(hlDir, normalize(u_HeadlightDir));
+                        // Dual cone falloff: inner cone ~22 deg (0.927), outer ~35 deg (0.819)
+                        float spotFactor = smoothstep(0.80, 0.94, spotDot);
+                        if (spotFactor > 0.0) {
+                            float atten = 1.0 / (1.0 + 0.04 * distHL + 0.003 * distHL * distHL);
+                            vec3 hlL = -hlDir;
+                            float hlNdotL = max(dot(N, hlL), 0.0);
+                            vec3 hlDiffuse = albedo * hlNdotL * (1.0 - u_Metallic * 0.8);
+                            headlightLight = u_HeadlightColor * (hlDiffuse * spotFactor * atten * u_HeadlightIntensity);
+                        }
+                    }
                 }
 
-                // Taillight, Brake Light and Headlight Glow
+                // --- 6. Wet Road Reflection & Anisotropic Horizon Sheen ---
+                vec3 wetReflection = vec3(0.0);
+                if (u_WetRoadActive > 0.05 && N.y > 0.55) {
+                    // Strong grazing Fresnel on wet mirror surface
+                    float wetF = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.5);
+                    // Puddle micro-surface variation
+                    float puddleNoise = hash21(floor(v_WorldPos.xz * 1.5)) * 0.3 + 0.7;
+                    vec3 puddleEnv = mix(ambientColor * 1.5, u_SunColor * 1.2, 0.6);
+                    wetReflection = puddleEnv * (wetF * 1.8 + 0.25) * u_WetRoadActive * puddleNoise;
+                }
+
+                // --- 7. LED Headlight, Taillight & Brake Light Glow ---
                 vec3 emission = u_EmissionColor.rgb;
                 if (v_VertexColor.r > 0.85 && v_VertexColor.g < 0.20 && v_VertexColor.b < 0.20) {
-                    // Constant LED taillight glow + dynamic bright brake illumination
-                    emission += vec3(0.55, 0.04, 0.04) + vec3(2.8 * u_BrakeIntensity, 0.18 * u_BrakeIntensity, 0.18 * u_BrakeIntensity);
+                    // Constant LED taillight glow ribbon + intense dynamic brake illumination
+                    emission += vec3(0.60, 0.04, 0.04) + vec3(3.2 * u_BrakeIntensity, 0.20 * u_BrakeIntensity, 0.20 * u_BrakeIntensity);
                 } else if (v_VertexColor.r > 0.92 && v_VertexColor.g > 0.95 && v_VertexColor.b > 0.98) {
-                    // Xenon / LED Headlight glow
-                    emission += vec3(0.45, 0.52, 0.65);
+                    // Crisp Xenon / LED Headlight projector core glow
+                    emission += vec3(0.55, 0.65, 0.85);
                 }
 
-                // Combine material, vertex color, lighting
-                vec4 baseColor = u_MaterialColor * v_VertexColor;
-                vec3 litColor = baseColor.rgb * (ambient + diffuse) + specular + emission;
+                // --- 8. Combine Illumination Components ---
+                vec3 litColor = ambient + directLight + clearcoatSpecular + headlightLight + wetReflection + emission;
 
-                // Distance Fog with smoothstep
+                // --- 9. Atmospheric Distance Fog with Natural Exponential Curve ---
                 float fogFactor = clamp((v_Distance - u_FogNear) / max(u_FogFar - u_FogNear, 1.0), 0.0, 1.0);
                 fogFactor = smoothstep(0.0, 1.0, fogFactor);
                 vec3 withFog = mix(litColor, u_FogColor, fogFactor);
 
-                // ACES-inspired filmic tone mapping & gamma correction
+                // --- 10. Filmic Tone Mapping (High-dynamic Range & Contrast) ---
                 vec3 x = max(vec3(0.0), withFog - vec3(0.004));
                 vec3 toneMapped = (x * (6.2 * x + 0.5)) / (x * (6.2 * x + 1.7) + 0.06);
 
