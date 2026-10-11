@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.example.racing.model.CarDefinition
 import com.example.racing.model.RaceMode
 import com.example.racing.model.TrackId
+import com.example.racing.engine.PaintFinishType
 
 @Composable
 fun GarageScreen(
@@ -434,11 +435,13 @@ fun VehiclesTab(
 fun PaintTab(
     selectedCar: CarDefinition,
     selectedColorIdx: Int,
-    onSelectColor: (Int) -> Unit
+    selectedFinish: PaintFinishType,
+    onSelectColor: (Int) -> Unit,
+    onSelectFinish: (PaintFinishType) -> Unit
 ) {
     Column {
         Text(
-            text = "FACTORY & METALLIC AUTOMOTIVE PAINTS",
+            text = "FACTORY AUTOMOTIVE COLOR",
             color = Color(0xFF90A4AE),
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold
@@ -471,6 +474,44 @@ fun PaintTab(
                         fontSize = 9.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "CLEARCOAT & SURFACE FINISH",
+            color = Color(0xFF90A4AE),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(PaintFinishType.values().toList()) { finish ->
+                val isSelected = finish == selectedFinish
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = if (isSelected) Color(0xFF263238) else Color(0x33102027),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .border(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) Color(0xFF00E5FF) else Color(0x22FFFFFF),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onSelectFinish(finish) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = finish.displayName,
+                            color = if (isSelected) Color.White else Color(0xFF90A4AE),
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
             }
         }
