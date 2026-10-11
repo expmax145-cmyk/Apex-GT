@@ -776,6 +776,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         audioEngine.isMuted = muted
     }
 
+    var isGamePaused: Boolean = false
+        private set
+
+    fun onPause() {
+        isGamePaused = true
+        resetDriverInputs()
+        audioEngine.stop()
+    }
+
+    fun onResume() {
+        isGamePaused = false
+        audioEngine.isMuted = dataManager.soundMuted
+        audioEngine.masterVolume = dataManager.soundVolume
+        audioEngine.start()
+    }
+
     override fun onCleared() {
         super.onCleared()
         audioEngine.stop()

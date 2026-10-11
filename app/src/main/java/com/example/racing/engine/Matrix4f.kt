@@ -10,7 +10,13 @@ class Matrix4f {
     }
 
     fun identity(): Matrix4f {
-        Matrix.setIdentityM(values, 0)
+        try {
+            Matrix.setIdentityM(values, 0)
+        } catch (_: RuntimeException) {
+            for (i in 0 until 16) {
+                values[i] = if (i % 5 == 0) 1.0f else 0.0f
+            }
+        }
         return this
     }
 

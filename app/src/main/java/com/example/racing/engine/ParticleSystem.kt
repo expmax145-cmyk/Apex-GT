@@ -31,8 +31,8 @@ class ParticleSystem(val maxParticles: Int = 160) {
     private val particles = Array(maxParticles) { Particle() }
     private var nextIdx = 0
 
-    // Vertex data: 4 vertices per particle (quad), each vertex: x, y, z, u, v, r, g, b, a (9 floats)
-    private val maxVertices = maxParticles * 4
+    // Vertex data: 6 vertices per particle (2 triangles quad), each vertex: x, y, z, u, v, r, g, b, a (9 floats)
+    private val maxVertices = maxParticles * 6
     private val vertexBuffer: FloatBuffer = ByteBuffer.allocateDirect(maxVertices * 9 * 4)
         .order(ByteOrder.nativeOrder())
         .asFloatBuffer()

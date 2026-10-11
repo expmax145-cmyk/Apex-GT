@@ -51,6 +51,7 @@ class OpponentAIController(
     var lastLapTimeSec: Float = 0f
     var raceFinished: Boolean = false
     var finishTimeSec: Float = 0f
+    var cachedMaterial: com.example.racing.engine.Material? = null
 
     // State machine & humanized behavior
     var recoveryState: AIRecoveryState = AIRecoveryState.NORMAL

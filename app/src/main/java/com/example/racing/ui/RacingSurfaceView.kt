@@ -11,6 +11,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
 fun RacingSurfaceView(
@@ -18,6 +21,7 @@ fun RacingSurfaceView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val glView = remember {
         object : GLSurfaceView(context) {
@@ -26,6 +30,7 @@ fun RacingSurfaceView(
 
             init {
                 setEGLContextClientVersion(3)
+                preserveEGLContextOnPause = true
                 viewModel.renderer?.let { r ->
                     setRenderer(r)
                     renderMode = RENDERMODE_CONTINUOUSLY
@@ -56,6 +61,27 @@ fun RacingSurfaceView(
         }
     }
 
+    // Lifecycle observer for GLSurfaceView pause/resume and power management
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    glView.onResume()
+                    viewModel.onResume()
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    glView.onPause()
+                    viewModel.onPause()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     // High frequency fixed-timestep physics update thread
     DisposableEffect(Unit) {
         var isLooping = true
@@ -65,22 +91,27 @@ fun RacingSurfaceView(
 
         val thread = Thread({
             while (isLooping) {
-                val nowNanos = SystemClock.elapsedRealtimeNanos()
-                val frameTimeSec = ((nowNanos - lastTimeNanos) / 1_000_000_000.0f).coerceIn(0.001f, 0.05f)
-                lastTimeNanos = nowNanos
+                if (!viewModel.isGamePaused) {
+                    val nowNanos = SystemClock.elapsedRealtimeNanos()
+                    val frameTimeSec = ((nowNanos - lastTimeNanos) / 1_000_000_000.0f).coerceIn(0.001f, 0.05f)
+                    lastTimeNanos = nowNanos
 
-                accumulatorSec += frameTimeSec
+                    accumulatorSec += frameTimeSec
 
-                // Fixed sub-stepping accumulator: prevents spiral of death
-                var steps = 0
-                while (accumulatorSec >= fixedDtSec && steps < 4) {
-                    viewModel.updateGamePhysics(fixedDtSec)
-                    accumulatorSec -= fixedDtSec
-                    steps++
+                    // Fixed sub-stepping accumulator: prevents spiral of death
+                    var steps = 0
+                    while (accumulatorSec >= fixedDtSec && steps < 4) {
+                        viewModel.updateGamePhysics(fixedDtSec)
+                        accumulatorSec -= fixedDtSec
+                        steps++
+                    }
+                } else {
+                    lastTimeNanos = SystemClock.elapsedRealtimeNanos()
+                    accumulatorSec = 0f
                 }
 
                 try {
-                    Thread.sleep(10)
+                    Thread.sleep(if (viewModel.isGamePaused) 100 else 10)
                 } catch (_: InterruptedException) {
                     break
                 }

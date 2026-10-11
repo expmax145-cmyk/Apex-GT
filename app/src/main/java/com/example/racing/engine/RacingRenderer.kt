@@ -46,10 +46,35 @@ class RacingRenderer(
     private val viewMatrix = Matrix4f()
     private val modelMatrix = Matrix4f()
     private val vpMatrix = FloatArray(16)
+    private val reusableWheelMatrix = Matrix4f()
 
     private val currentCamPos = Vector3f(0f, 2.5f, -6f)
     private val currentCamTarget = Vector3f(0f, 1f, 0f)
+    private val targetCamPos = Vector3f()
+    private val targetLookAt = Vector3f()
     private var currentFov: Float = 60f
+
+    private var cachedPlayerMaterial: Material? = null
+    private var cachedPlayerPaintColor: FloatArray? = null
+    private var cachedPlayerFinish: PaintFinishType? = null
+
+    private fun getPlayerMaterial(): Material {
+        val currentColor = playerPaintColor
+        val currentFinish = playerPaintFinish
+        val cached = cachedPlayerMaterial
+        if (cached == null ||
+            cachedPlayerFinish != currentFinish ||
+            cachedPlayerPaintColor == null ||
+            !cachedPlayerPaintColor.contentEquals(currentColor)
+        ) {
+            val newMat = currentFinish.createMaterial(currentColor)
+            cachedPlayerMaterial = newMat
+            cachedPlayerPaintColor = currentColor.clone()
+            cachedPlayerFinish = currentFinish
+            return newMat
+        }
+        return cached
+    }
 
     private var viewportWidth = 1
     private var viewportHeight = 1
@@ -194,7 +219,7 @@ class RacingRenderer(
         }
 
         // 3. Render Player Vehicle & Wheels
-        val playerMaterial = playerPaintFinish.createMaterial(playerPaintColor)
+        val playerMaterial = getPlayerMaterial()
         renderVehicle(
             vehicle = playerVehicle,
             car = activeCar,
@@ -206,12 +231,14 @@ class RacingRenderer(
         if (!isShowroomMode) {
             for (ai in aiOpponents) {
                 val aiCarModel = carModels[ai.profile.carId] ?: activeCar
-                val aiFinish = when (ai.profile.difficulty) {
-                    com.example.racing.ai.AIDifficulty.EXPERT -> PaintFinishType.PEARLESCENT
-                    com.example.racing.ai.AIDifficulty.MEDIUM -> PaintFinishType.METALLIC
-                    else -> PaintFinishType.GLOSS
+                val aiMaterial = ai.cachedMaterial ?: run {
+                    val aiFinish = when (ai.profile.difficulty) {
+                        com.example.racing.ai.AIDifficulty.EXPERT -> PaintFinishType.PEARLESCENT
+                        com.example.racing.ai.AIDifficulty.MEDIUM -> PaintFinishType.METALLIC
+                        else -> PaintFinishType.GLOSS
+                    }
+                    aiFinish.createMaterial(ai.profile.carColor).also { ai.cachedMaterial = it }
                 }
-                val aiMaterial = aiFinish.createMaterial(ai.profile.carColor)
                 renderVehicle(
                     vehicle = ai.vehicle,
                     car = aiCarModel,
@@ -321,23 +348,23 @@ class RacingRenderer(
         // Subtle steer bias pans the camera look-target into the apex of corners
         val steerBias = playerVehicle.currentSteerAngleRad * 2.2f
 
-        val targetCamPos = when (currentCameraView) {
+        when (currentCameraView) {
             CameraView.CHASE_NEAR -> {
-                Vector3f(
+                targetCamPos.set(
                     carPos.x - sinYaw * (5.2f + speedLag),
                     carPos.y + 1.85f + speedLag * 0.18f,
                     carPos.z - cosYaw * (5.2f + speedLag)
                 )
             }
             CameraView.CHASE_FAR -> {
-                Vector3f(
+                targetCamPos.set(
                     carPos.x - sinYaw * (7.5f + speedLag * 1.1f),
                     carPos.y + 2.85f + speedLag * 0.25f,
                     carPos.z - cosYaw * (7.5f + speedLag * 1.1f)
                 )
             }
             CameraView.HOOD_BUMPER -> {
-                Vector3f(
+                targetCamPos.set(
                     carPos.x + sinYaw * 1.65f,
                     carPos.y + 0.68f,
                     carPos.z + cosYaw * 1.65f
@@ -347,7 +374,7 @@ class RacingRenderer(
                 val driverOffsetX = -0.22f
                 val worldOffsetX = driverOffsetX * cosYaw
                 val worldOffsetZ = -driverOffsetX * sinYaw
-                Vector3f(
+                targetCamPos.set(
                     carPos.x - sinYaw * 0.08f + worldOffsetX,
                     carPos.y + 0.96f,
                     carPos.z - cosYaw * 0.08f + worldOffsetZ
@@ -355,11 +382,11 @@ class RacingRenderer(
             }
         }
 
-        val targetLookAt = when (currentCameraView) {
+        when (currentCameraView) {
             CameraView.HOOD_BUMPER -> {
                 val lookSin = sin(yawRad + steerBias * 0.15f)
                 val lookCos = cos(yawRad + steerBias * 0.15f)
-                Vector3f(
+                targetLookAt.set(
                     carPos.x + lookSin * 28f,
                     carPos.y + 0.62f,
                     carPos.z + lookCos * 28f
@@ -371,7 +398,7 @@ class RacingRenderer(
                 val worldOffsetZ = -driverOffsetX * sinYaw
                 val lookSin = sin(yawRad + steerBias * 0.20f)
                 val lookCos = cos(yawRad + steerBias * 0.20f)
-                Vector3f(
+                targetLookAt.set(
                     carPos.x + lookSin * 30f + worldOffsetX,
                     carPos.y + 0.85f,
                     carPos.z + lookCos * 30f + worldOffsetZ
@@ -381,7 +408,7 @@ class RacingRenderer(
                 // Chase camera looks ahead down the track, panning slightly into turn
                 val lookSin = sin(yawRad + steerBias * 0.22f)
                 val lookCos = cos(yawRad + steerBias * 0.22f)
-                Vector3f(
+                targetLookAt.set(
                     carPos.x + lookSin * lookaheadDist,
                     carPos.y + 1.12f,
                     carPos.z + lookCos * lookaheadDist
@@ -396,8 +423,8 @@ class RacingRenderer(
             CameraView.CHASE_FAR -> 0.18f
         }
 
-        currentCamPos.set(currentCamPos.lerp(targetCamPos, smoothFactor))
-        currentCamTarget.set(currentCamTarget.lerp(targetLookAt, smoothFactor))
+        currentCamPos.lerpTo(targetCamPos, smoothFactor)
+        currentCamTarget.lerpTo(targetLookAt, smoothFactor)
 
         viewMatrix.identity().lookAt(
             currentCamPos.x, currentCamPos.y, currentCamPos.z,
@@ -452,7 +479,7 @@ class RacingRenderer(
             val isFront = (i < 2)
             val isLeft = (i % 2 == 0)
 
-            val wheelMatrix = Matrix4f()
+            reusableWheelMatrix.identity()
                 .translate(carPos.x, carPos.y, carPos.z)
                 .rotate(headingDeg, 0f, 1f, 0f)
                 .rotate(rollDeg, 0f, 0f, 1f)
@@ -460,16 +487,16 @@ class RacingRenderer(
                 .translate(wp.x, wp.y + vehicle.suspensionCompression[i], wp.z)
 
             if (isFront) {
-                wheelMatrix.rotate(steerDeg, 0f, 1f, 0f)
+                reusableWheelMatrix.rotate(steerDeg, 0f, 1f, 0f)
             }
 
-            wheelMatrix.rotate(spinDeg, 1f, 0f, 0f)
+            reusableWheelMatrix.rotate(spinDeg, 1f, 0f, 0f)
 
             if (!isLeft) {
-                wheelMatrix.rotate(180f, 0f, 1f, 0f)
+                reusableWheelMatrix.rotate(180f, 0f, 1f, 0f)
             }
 
-            shader.setMat4("u_ModelMatrix", wheelMatrix.values)
+            shader.setMat4("u_ModelMatrix", reusableWheelMatrix.values)
             shader.setMaterial(Material.WHEEL_ASSEMBLY)
             car.wheelMesh.draw()
         }

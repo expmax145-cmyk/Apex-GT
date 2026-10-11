@@ -407,4 +407,51 @@ class ExampleUnitTest {
         assertEquals(2, racer2.position)
         assertEquals("+0.67s", racer2.gapToLeaderText)
     }
+
+    @Test
+    fun testVector3fInPlaceLerpTo() {
+        val current = Vector3f(10f, 20f, 30f)
+        val target = Vector3f(20f, 40f, 50f)
+
+        // Mutates current in-place without creating a new instance
+        val returned = current.lerpTo(target, 0.5f)
+        assertTrue("lerpTo must return the exact same instance for zero-allocation", returned === current)
+        assertEquals(15f, current.x, 0.001f)
+        assertEquals(30f, current.y, 0.001f)
+        assertEquals(40f, current.z, 0.001f)
+
+        // Test boundary clamping
+        current.lerpTo(target, 2.0f) // Clamped to 1.0
+        assertEquals(20f, current.x, 0.001f)
+        assertEquals(40f, current.y, 0.001f)
+        assertEquals(50f, current.z, 0.001f)
+    }
+
+    @Test
+    fun testMatrix4fReusableOperations() {
+        val m = com.example.racing.engine.Matrix4f()
+        assertNotNull(m.values)
+        assertEquals(16, m.values.size)
+
+        // Reusing identity resets without allocating new memory
+        m.identity()
+        assertEquals(1f, m.values[0], 0.001f)
+        assertEquals(0f, m.values[1], 0.001f)
+        assertEquals(1f, m.values[5], 0.001f)
+        assertEquals(1f, m.values[10], 0.001f)
+        assertEquals(1f, m.values[15], 0.001f)
+    }
+
+    @Test
+    fun testPaintFinishMaterialCaching() {
+        val color = floatArrayOf(0.9f, 0.2f, 0.1f, 1.0f)
+        val gloss = com.example.racing.engine.PaintFinishType.GLOSS.createMaterial(color)
+        val metallic = com.example.racing.engine.PaintFinishType.METALLIC.createMaterial(color)
+
+        assertNotNull(gloss)
+        assertNotNull(metallic)
+        assertTrue("Metallic finish must have higher metallic factor than gloss", metallic.metallic > gloss.metallic)
+        assertTrue("Metallic finish must have higher clearcoat than gloss", metallic.clearcoat >= gloss.clearcoat)
+    }
 }
+

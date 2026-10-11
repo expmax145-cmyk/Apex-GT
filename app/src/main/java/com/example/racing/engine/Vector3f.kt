@@ -95,6 +95,14 @@ data class Vector3f(
         )
     }
 
+    fun lerpTo(target: Vector3f, t: Float): Vector3f {
+        val clampedT = t.coerceIn(0f, 1f)
+        x += (target.x - x) * clampedT
+        y += (target.y - y) * clampedT
+        z += (target.z - z) * clampedT
+        return this
+    }
+
     companion object {
         val ZERO get() = Vector3f(0f, 0f, 0f)
         val UP get() = Vector3f(0f, 1f, 0f)
