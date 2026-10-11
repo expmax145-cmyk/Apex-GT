@@ -49,6 +49,7 @@ class RacingRenderer(
 
     private val currentCamPos = Vector3f(0f, 2.5f, -6f)
     private val currentCamTarget = Vector3f(0f, 1f, 0f)
+    private var currentFov: Float = 60f
 
     private var viewportWidth = 1
     private var viewportHeight = 1
@@ -173,8 +174,8 @@ class RacingRenderer(
             modelMatrix.identity()
             activeShader.setMat4("u_ModelMatrix", modelMatrix.values)
 
-            // Terrain Scenery
-            activeShader.setMaterial(if (activeTrack.trackId == TrackId.ALPINE_PASS) Material.MOUNTAIN_ROCK else Material.GRASS)
+            // Terrain Scenery & Trackside Environment
+            activeShader.setMaterial(Material.ENVIRONMENT_SCENERY)
             activeTrack.environmentMesh.draw()
 
             // Asphalt Road
@@ -267,6 +268,9 @@ class RacingRenderer(
     }
 
     private fun setupShowroomCamera() {
+        val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
+        projectionMatrix.identity().perspective(55f, aspect, 0.2f, 1200f)
+
         val radOrbit = (showroomOrbitAngleDeg * (PI / 180.0)).toFloat()
         val radElev = (showroomElevationDeg * (PI / 180.0)).toFloat()
 
@@ -287,30 +291,56 @@ class RacingRenderer(
     private fun setupRacingCamera() {
         val carPos = playerVehicle.position
         val yawRad = playerVehicle.headingAngleRad
+        val speedKmh = playerVehicle.speedKmh
 
+        // 1. Dynamic Speed-Dependent Field of View (FOV)
+        val baseFov = when (currentCameraView) {
+            CameraView.HOOD_BUMPER -> 66f
+            CameraView.COCKPIT -> 63f
+            CameraView.CHASE_FAR -> 64f
+            CameraView.CHASE_NEAR -> 60f
+        }
+        val speedFovDelta = (speedKmh / 350f).coerceIn(0f, 1f) * 9f
+        val boostFovDelta = if (playerVehicle.boostActive) 4.5f else 0f
+        val targetFov = (baseFov + speedFovDelta + boostFovDelta).coerceIn(58f, 80f)
+        currentFov += (targetFov - currentFov) * 0.14f
+
+        val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
+        projectionMatrix.identity().perspective(currentFov, aspect, 0.2f, 1200f)
+
+        // 2. Camera Positioning & Look-ahead Dynamics
         val sinYaw = sin(yawRad)
         val cosYaw = cos(yawRad)
+
+        // Speed lag: camera gently pulls back under high acceleration / high speed
+        val speedLag = (speedKmh / 350f).coerceIn(0f, 1f) * 0.75f
+
+        // Dynamic look-ahead: looks further down track as speed climbs
+        val lookaheadDist = (12f + (speedKmh * 0.08f)).coerceIn(12f, 34f)
+
+        // Subtle steer bias pans the camera look-target into the apex of corners
+        val steerBias = playerVehicle.currentSteerAngleRad * 2.2f
 
         val targetCamPos = when (currentCameraView) {
             CameraView.CHASE_NEAR -> {
                 Vector3f(
-                    carPos.x - sinYaw * 5.2f,
-                    carPos.y + 1.85f,
-                    carPos.z - cosYaw * 5.2f
+                    carPos.x - sinYaw * (5.2f + speedLag),
+                    carPos.y + 1.85f + speedLag * 0.18f,
+                    carPos.z - cosYaw * (5.2f + speedLag)
                 )
             }
             CameraView.CHASE_FAR -> {
                 Vector3f(
-                    carPos.x - sinYaw * 7.5f,
-                    carPos.y + 2.8f,
-                    carPos.z - cosYaw * 7.5f
+                    carPos.x - sinYaw * (7.5f + speedLag * 1.1f),
+                    carPos.y + 2.85f + speedLag * 0.25f,
+                    carPos.z - cosYaw * (7.5f + speedLag * 1.1f)
                 )
             }
             CameraView.HOOD_BUMPER -> {
                 Vector3f(
-                    carPos.x + sinYaw * 1.55f,
-                    carPos.y + 0.72f,
-                    carPos.z + cosYaw * 1.55f
+                    carPos.x + sinYaw * 1.65f,
+                    carPos.y + 0.68f,
+                    carPos.z + cosYaw * 1.65f
                 )
             }
             CameraView.COCKPIT -> {
@@ -318,41 +348,54 @@ class RacingRenderer(
                 val worldOffsetX = driverOffsetX * cosYaw
                 val worldOffsetZ = -driverOffsetX * sinYaw
                 Vector3f(
-                    carPos.x - sinYaw * 0.12f + worldOffsetX,
-                    carPos.y + 0.95f,
-                    carPos.z - cosYaw * 0.12f + worldOffsetZ
+                    carPos.x - sinYaw * 0.08f + worldOffsetX,
+                    carPos.y + 0.96f,
+                    carPos.z - cosYaw * 0.08f + worldOffsetZ
                 )
             }
         }
 
         val targetLookAt = when (currentCameraView) {
             CameraView.HOOD_BUMPER -> {
+                val lookSin = sin(yawRad + steerBias * 0.15f)
+                val lookCos = cos(yawRad + steerBias * 0.15f)
                 Vector3f(
-                    carPos.x + sinYaw * 20f,
-                    carPos.y + 0.65f,
-                    carPos.z + cosYaw * 20f
+                    carPos.x + lookSin * 28f,
+                    carPos.y + 0.62f,
+                    carPos.z + lookCos * 28f
                 )
             }
             CameraView.COCKPIT -> {
                 val driverOffsetX = -0.22f
                 val worldOffsetX = driverOffsetX * cosYaw
                 val worldOffsetZ = -driverOffsetX * sinYaw
+                val lookSin = sin(yawRad + steerBias * 0.20f)
+                val lookCos = cos(yawRad + steerBias * 0.20f)
                 Vector3f(
-                    carPos.x + sinYaw * 25f + worldOffsetX,
-                    carPos.y + 0.80f,
-                    carPos.z + cosYaw * 25f + worldOffsetZ
+                    carPos.x + lookSin * 30f + worldOffsetX,
+                    carPos.y + 0.85f,
+                    carPos.z + lookCos * 30f + worldOffsetZ
                 )
             }
             else -> {
+                // Chase camera looks ahead down the track, panning slightly into turn
+                val lookSin = sin(yawRad + steerBias * 0.22f)
+                val lookCos = cos(yawRad + steerBias * 0.22f)
                 Vector3f(
-                    carPos.x + sinYaw * 3.5f,
-                    carPos.y + 0.85f,
-                    carPos.z + cosYaw * 3.5f
+                    carPos.x + lookSin * lookaheadDist,
+                    carPos.y + 1.12f,
+                    carPos.z + lookCos * lookaheadDist
                 )
             }
         }
 
-        val smoothFactor = if (currentCameraView == CameraView.HOOD_BUMPER || currentCameraView == CameraView.COCKPIT) 0.65f else 0.22f
+        val smoothFactor = when (currentCameraView) {
+            CameraView.HOOD_BUMPER -> 0.75f
+            CameraView.COCKPIT -> 0.70f
+            CameraView.CHASE_NEAR -> 0.24f
+            CameraView.CHASE_FAR -> 0.18f
+        }
+
         currentCamPos.set(currentCamPos.lerp(targetCamPos, smoothFactor))
         currentCamTarget.set(currentCamTarget.lerp(targetLookAt, smoothFactor))
 

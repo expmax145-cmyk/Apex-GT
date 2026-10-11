@@ -51,7 +51,9 @@ class EnginePowertrain(
             turboBoostBar = 0f
         }
 
-        val forwardSpeed = max(0f, vehicleSpeedForwardMs)
+        val isReverse = (currentGear == 0)
+        val absSpeed = kotlin.math.abs(vehicleSpeedForwardMs)
+        val effectiveSpeed = if (isReverse) absSpeed else max(0f, vehicleSpeedForwardMs)
         val selectedRatio = gearRatios[currentGear]
 
         if (currentGear == 1) { // Neutral
@@ -61,8 +63,8 @@ class EnginePowertrain(
         }
 
         // Calculate wheel angular velocity
-        val wheelAngularVel = forwardSpeed / wheelRadiusM
-        val targetEngineRpm = (wheelAngularVel * selectedRatio * finalDriveRatio * 60f / (2f * PI.toFloat()))
+        val wheelAngularVel = effectiveSpeed / wheelRadiusM
+        val targetEngineRpm = (wheelAngularVel * kotlin.math.abs(selectedRatio) * finalDriveRatio * 60f / (2f * PI.toFloat()))
 
         // Smooth RPM interpolation with clutch slip at low speeds
         val baseRpm = max(idleRpm, targetEngineRpm)
@@ -77,7 +79,7 @@ class EnginePowertrain(
             isRevLimiting = false
         }
 
-        if (isAutomatic && shiftTimer <= 0f) {
+        if (isAutomatic && shiftTimer <= 0f && currentGear >= 2) {
             // Automatic Shift Up
             if (currentGear in 2 until gearRatios.size - 1 && currentRpm > redlineRpm * 0.94f) {
                 currentGear++
@@ -85,11 +87,11 @@ class EnginePowertrain(
                 currentRpm *= 0.72f
                 exhaustBackfireTrigger = true
             }
-            // Automatic Shift Down
-            else if (currentGear > 2 && currentRpm < 3200f && forwardSpeed < getMinSpeedForGear(currentGear)) {
+            // Automatic Shift Down with rev-matching blip
+            else if (currentGear > 2 && currentRpm < 3200f && effectiveSpeed < getMinSpeedForGear(currentGear)) {
                 currentGear--
                 shiftTimer = 0.14f
-                currentRpm *= 1.35f
+                currentRpm = (currentRpm * 1.35f).coerceAtMost(redlineRpm * 0.92f)
             }
         }
 
@@ -97,9 +99,13 @@ class EnginePowertrain(
         val rpmNorm = (currentRpm - peakTorqueRpm) / peakTorqueRpm
         val torqueFactor = (1.0f - 0.35f * (rpmNorm * rpmNorm)).coerceIn(0.2f, 1.0f)
         val turboMultiplier = 1.0f + (turboBoostBar * 0.28f)
-        val engineTorque = maxTorqueNm * torqueFactor * throttleInput * turboMultiplier
+        val engineTorque = if (isReverse && absSpeed > 13.0f) {
+            0f
+        } else {
+            maxTorqueNm * torqueFactor * throttleInput * turboMultiplier
+        }
 
-        // Wheel drive torque
+        // Wheel drive torque (negative in reverse gear)
         val totalRatio = selectedRatio * finalDriveRatio
         val wheelTorque = engineTorque * totalRatio * 0.92f
         return wheelTorque / wheelRadiusM

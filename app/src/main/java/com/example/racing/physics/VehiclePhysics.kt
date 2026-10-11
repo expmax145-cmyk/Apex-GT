@@ -18,6 +18,7 @@ class VehiclePhysics(
     val maxSteerAngleRad: Float = 0.58f,
     val downforceCoeff: Float = 0.75f,
     val dragCoeff: Float = 0.31f,
+    val driveFrontRatio: Float = 0.0f,
     val tireModel: TireModel = TireModel(),
     val powertrain: EnginePowertrain = EnginePowertrain()
 ) {
@@ -26,6 +27,8 @@ class VehiclePhysics(
     var headingAngleRad: Float = 0f
     var pitchAngleRad: Float = 0f
     var rollAngleRad: Float = 0f
+    var pitchVelocity: Float = 0f
+    var rollVelocity: Float = 0f
 
     // Local vehicle frame velocities
     var forwardVelocity: Float = 0f
@@ -94,17 +97,57 @@ class VehiclePhysics(
             }
         }
 
-        // 2. Speed-sensitive steering angle (Ackermann base)
+        // 2. Speed-sensitive steering angle with dynamic self-centering and counter-steer assist
         val speedMagnitude = abs(forwardVelocity)
         speedKmh = speedMagnitude * 3.6f
 
-        val speedSteerFactor = (1.0f / (1.0f + (speedMagnitude / 36f))).coerceIn(0.28f, 1.0f)
-        val targetSteer = steerInput * maxSteerAngleRad * speedSteerFactor
+        val speedSteerFactor = (1.0f / (1.0f + (speedMagnitude / 38f))).coerceIn(0.32f, 1.0f)
+        var targetSteer = steerInput * maxSteerAngleRad * speedSteerFactor
 
-        val steerRate = 8.5f
-        currentSteerAngleRad += (targetSteer - currentSteerAngleRad) * (clampedDt * steerRate)
+        // Counter-steer drift assist: when the tail kicks out into a slide, allow extra steering lock in opposite direction
+        val isOversteering = (abs(driftAngleDeg) > 8f && forwardVelocity > 5f)
+        if (isOversteering) {
+            val counterSteerSign = if (driftAngleDeg > 0f) -1f else 1f
+            if (steerInput * counterSteerSign > 0.1f) {
+                // Driver is steering into the slide (counter-steering): extend steering authority
+                targetSteer *= 1.35f
+            }
+        }
 
-        // 3. Dynamic normal loads & Weight transfer
+        // Asymmetric steer rate: faster self-centering when returning to neutral
+        val steerRate = if (abs(targetSteer) < abs(currentSteerAngleRad)) 14.0f else 8.8f
+        currentSteerAngleRad += (targetSteer - currentSteerAngleRad) * (clampedDt * steerRate).coerceAtMost(1.0f)
+
+        // Automatic Reverse Shifting:
+        // When stopped, brake pedal drives reverse; in reverse, throttle brakes
+        var effectiveThrottle = throttle
+        var effectiveBrake = brake
+
+        if (powertrain.currentGear == 0) { // Reverse gear active
+            if (throttle > 0.1f) {
+                // Throttle acts as forward brake in reverse
+                effectiveBrake = throttle
+                effectiveThrottle = 0f
+                if (abs(forwardVelocity) < 0.25f) {
+                    powertrain.currentGear = 2 // Shift back to 1st
+                    powertrain.shiftTimer = 0.15f
+                }
+            } else if (brake > 0.05f) {
+                // Brake pedal acts as reverse throttle
+                effectiveThrottle = brake
+                effectiveBrake = 0f
+            }
+        } else { // Forward gears
+            if (abs(forwardVelocity) < 0.25f && brake > 0.2f && throttle == 0f) {
+                // Stationary with brake held -> shift into Reverse
+                powertrain.currentGear = 0
+                powertrain.shiftTimer = 0.15f
+                effectiveThrottle = brake
+                effectiveBrake = 0f
+            }
+        }
+
+        // 3. Dynamic normal loads & 4-Corner Weight Transfer
         val totalStaticLoad = massKg * gravity
         val frontStaticLoad = totalStaticLoad * (distRear / wheelbaseM)
         val rearStaticLoad = totalStaticLoad * (distFront / wheelbaseM)
@@ -117,54 +160,88 @@ class VehiclePhysics(
         val frontDownforce = aeroDownforce * 0.45f
         val rearDownforce = aeroDownforce * 0.55f
 
-        val fzFront = max(200f, (frontStaticLoad - longTransfer + frontDownforce) * 0.5f)
-        val fzRear = max(200f, (rearStaticLoad + longTransfer + rearDownforce) * 0.5f)
+        val totalFzFront = max(400f, frontStaticLoad - longTransfer + frontDownforce)
+        val totalFzRear = max(400f, rearStaticLoad + longTransfer + rearDownforce)
 
-        // 4. Drive Traction from Powertrain
+        // Lateral weight transfer per axle
+        val latTransferFront = latTransfer * 0.52f
+        val latTransferRear = latTransfer * 0.48f
+
+        val fzFL = max(150f, totalFzFront * 0.5f - latTransferFront)
+        val fzFR = max(150f, totalFzFront * 0.5f + latTransferFront)
+        val fzRL = max(150f, totalFzRear * 0.5f - latTransferRear)
+        val fzRR = max(150f, totalFzRear * 0.5f + latTransferRear)
+
+        // 4. Drive Traction from Powertrain with Drivetrain Distribution
         val boostMultiplier = if (boostActive) 1.45f else 1.0f
         val engineTractionN = powertrain.update(
-            throttle * boostMultiplier,
+            effectiveThrottle * boostMultiplier,
             forwardVelocity,
             clampedDt
         )
+
+        val driveFrontN = engineTractionN * driveFrontRatio
+        val driveRearN = if (handbrake) 0f else (engineTractionN * (1.0f - driveFrontRatio))
 
         val aeroDragN = 0.5f * 1.225f * dragCoeff * 2.15f * (forwardVelocity * abs(forwardVelocity))
         val rollingCoeff = if (isOffRoad) 0.08f else 0.015f
         val rollingResistanceN = rollingCoeff * massKg * gravity * (if (forwardVelocity >= 0) 1f else -1f)
 
         val maxBrakeN = massKg * gravity * 1.35f
-        val brakeForceN = brake * maxBrakeN
+        val brakeForceN = effectiveBrake * maxBrakeN
 
-        var driveRearN = engineTractionN
-        if (handbrake) {
-            driveRearN = 0f
-        }
-
-        val netLongitudinalForce = driveRearN - (brakeForceN * (if (forwardVelocity >= 0) 1f else -1f)) - aeroDragN - rollingResistanceN
+        val netLongitudinalForce = (driveFrontN + driveRearN) - 
+            (brakeForceN * (if (forwardVelocity >= 0) 1f else -1f)) - 
+            aeroDragN - rollingResistanceN
 
         // 5. Lateral Tire Slip & Pacejka Magic Formula Forces
         val safeSpeed = max(1.2f, abs(forwardVelocity))
         val alphaFront = (atan2(lateralVelocity + distFront * yawRate, safeSpeed) - currentSteerAngleRad)
         val alphaRear = atan2(lateralVelocity - distRear * yawRate, safeSpeed)
 
-        var fyFront = -tireModel.calculateLateralForce(alphaFront, fzFront * 2f, surfaceGrip)
-        var fyRear = -tireModel.calculateLateralForce(alphaRear, fzRear * 2f, surfaceGrip)
+        // Cornering forces per wheel
+        val fyFL = -tireModel.calculateLateralForce(alphaFront, fzFL, surfaceGrip)
+        val fyFR = -tireModel.calculateLateralForce(alphaFront, fzFR, surfaceGrip)
+        val fyFront = fyFL + fyFR
+
+        var fyRL = -tireModel.calculateLateralForce(alphaRear, fzRL, surfaceGrip)
+        var fyRR = -tireModel.calculateLateralForce(alphaRear, fzRR, surfaceGrip)
+
+        // Friction circle coupling on rear driven wheels (power oversteer)
+        if (abs(driveRearN) > 100f && !handbrake) {
+            val maxRearGripN = (fzRL + fzRR) * tireModel.dPeakFriction * surfaceGrip
+            val driveRatio = (abs(driveRearN) / maxRearGripN.coerceAtLeast(100f)).coerceIn(0f, 0.85f)
+            val lateralReduction = sqrt(1.0f - driveRatio * driveRatio)
+            fyRL *= lateralReduction
+            fyRR *= lateralReduction
+        }
 
         if (handbrake) {
-            fyRear *= 0.18f
-            tireSlipRl = 0.95f
-            tireSlipRr = 0.95f
+            fyRL *= 0.18f
+            fyRR *= 0.18f
+            tireSlipRl = 0.98f
+            tireSlipRr = 0.98f
         } else {
-            tireSlipRl = (abs(alphaRear) * 2.2f).coerceIn(0f, 1f)
-            tireSlipRr = (abs(alphaRear) * 2.2f).coerceIn(0f, 1f)
+            val rearTractionSlip = (abs(driveRearN) / (totalFzRear * 1.25f)).coerceIn(0f, 0.45f)
+            tireSlipRl = ((abs(alphaRear) * 2.2f) + rearTractionSlip).coerceIn(0f, 1f)
+            tireSlipRr = ((abs(alphaRear) * 2.2f) + rearTractionSlip).coerceIn(0f, 1f)
         }
         tireSlipFl = (abs(alphaFront) * 2.2f).coerceIn(0f, 1f)
         tireSlipFr = (abs(alphaFront) * 2.2f).coerceIn(0f, 1f)
 
-        // 6. Equations of Motion
+        val fyRear = fyRL + fyRR
+
+        // 6. Equations of Motion with stabilizing yaw damping during counter-steer
         val accelLong = (netLongitudinalForce / massKg) + (lateralVelocity * yawRate)
         val accelLat = ((fyFront * cos(currentSteerAngleRad) + fyRear) / massKg) - (forwardVelocity * yawRate)
-        val torqueYaw = (distFront * fyFront * cos(currentSteerAngleRad)) - (distRear * fyRear)
+        var torqueYaw = (distFront * fyFront * cos(currentSteerAngleRad)) - (distRear * fyRear)
+
+        // Counter-steer yaw stabilization (prevents snap spins on counter-steering)
+        if (isOversteering && (steerInput * yawRate < 0f)) {
+            val yawDampingNm = yawRate * (massKg * 4.2f)
+            torqueYaw -= yawDampingNm
+        }
+
         val angularAccelYaw = torqueYaw / momentOfInertiaZ
 
         forwardVelocity += accelLong * clampedDt
@@ -172,7 +249,7 @@ class VehiclePhysics(
         yawRate += angularAccelYaw * clampedDt
 
         // Damping when stationary
-        if (abs(forwardVelocity) < 0.15f && throttle == 0f && brake > 0.1f) {
+        if (abs(forwardVelocity) < 0.15f && effectiveThrottle == 0f && effectiveBrake > 0.1f) {
             forwardVelocity = 0f
             lateralVelocity = 0f
             yawRate = 0f
@@ -190,13 +267,25 @@ class VehiclePhysics(
         position.x += worldVx * clampedDt
         position.z += worldVz * clampedDt
 
-        rollAngleRad = (-gForceLateral * 0.05f).coerceIn(-0.08f, 0.08f)
-        pitchAngleRad = (-gForceLongitudinal * 0.04f).coerceIn(-0.06f, 0.06f)
+        // 2nd-Order Spring-Damper Suspended Mass Dynamics for Chassis Pitch & Roll
+        val targetPitch = (-gForceLongitudinal * 0.045f).coerceIn(-0.075f, 0.075f)
+        val targetRoll = (-gForceLateral * 0.055f).coerceIn(-0.095f, 0.095f)
 
-        suspensionCompression[0] = -pitchAngleRad * 0.5f - rollAngleRad * 0.5f
-        suspensionCompression[1] = -pitchAngleRad * 0.5f + rollAngleRad * 0.5f
-        suspensionCompression[2] = pitchAngleRad * 0.5f - rollAngleRad * 0.5f
-        suspensionCompression[3] = pitchAngleRad * 0.5f + rollAngleRad * 0.5f
+        val pitchSpringRate = 34.0f
+        val pitchDampingRate = 12.0f
+        pitchVelocity += ((targetPitch - pitchAngleRad) * pitchSpringRate - pitchVelocity * pitchDampingRate) * clampedDt
+        pitchAngleRad += pitchVelocity * clampedDt
+
+        val rollSpringRate = 38.0f
+        val rollDampingRate = 12.5f
+        rollVelocity += ((targetRoll - rollAngleRad) * rollSpringRate - rollVelocity * rollDampingRate) * clampedDt
+        rollAngleRad += rollVelocity * clampedDt
+
+        // 4-corner visual suspension compression
+        suspensionCompression[0] = (-pitchAngleRad * 0.45f - rollAngleRad * 0.45f).coerceIn(-0.06f, 0.06f)
+        suspensionCompression[1] = (-pitchAngleRad * 0.45f + rollAngleRad * 0.45f).coerceIn(-0.06f, 0.06f)
+        suspensionCompression[2] = (pitchAngleRad * 0.45f - rollAngleRad * 0.45f).coerceIn(-0.06f, 0.06f)
+        suspensionCompression[3] = (pitchAngleRad * 0.45f + rollAngleRad * 0.45f).coerceIn(-0.06f, 0.06f)
 
         wheelRotationAngle += (forwardVelocity / 0.35f) * clampedDt
 
@@ -269,6 +358,8 @@ class VehiclePhysics(
         yawRate = 0f
         pitchAngleRad = 0f
         rollAngleRad = 0f
+        pitchVelocity = 0f
+        rollVelocity = 0f
         throttle = 0f
         brake = 0f
         steerInput = 0f

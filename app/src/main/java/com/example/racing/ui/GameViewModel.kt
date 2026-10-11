@@ -102,6 +102,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _graphicsPreset = MutableStateFlow(dataManager.graphicsPreset)
     val graphicsPreset: StateFlow<String> = _graphicsPreset.asStateFlow()
 
+    private val _leaderboard = MutableStateFlow<List<com.example.racing.model.LeaderboardRacer>>(emptyList())
+    val leaderboard: StateFlow<List<com.example.racing.model.LeaderboardRacer>> = _leaderboard.asStateFlow()
+
+    var lastRaceResults: List<com.example.racing.model.LeaderboardRacer> = emptyList()
+        private set
+
     var playerVehicle = VehiclePhysics()
     val aiOpponents = mutableListOf<OpponentAIController>()
     var renderer: RacingRenderer? = null
@@ -147,9 +153,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun setupAICompetitors() {
         aiOpponents.clear()
         val profiles = listOf(
-            AIDriverProfile("Viper", floatArrayOf(0.10f, 0.50f, 0.98f, 1.0f), 0.88f, AIDifficulty.EXPERT, carId = "apex_spirit_86"),
-            AIDriverProfile("Shadow", floatArrayOf(0.15f, 0.15f, 0.16f, 1.0f), 0.74f, AIDifficulty.MEDIUM, carId = "apex_monza_v10"),
-            AIDriverProfile("Ghost", floatArrayOf(0.98f, 0.88f, 0.10f, 1.0f), 0.58f, AIDifficulty.EASY, carId = "apex_valkyrie")
+            AIDriverProfile("Viper", floatArrayOf(0.10f, 0.50f, 0.98f, 1.0f), 0.88f, AIDifficulty.EXPERT, carId = "apex_spirit_86", preferredLaneOffset = -1.8f),
+            AIDriverProfile("Shadow", floatArrayOf(0.15f, 0.15f, 0.16f, 1.0f), 0.74f, AIDifficulty.MEDIUM, carId = "apex_monza_v10", preferredLaneOffset = 0.0f),
+            AIDriverProfile("Ghost", floatArrayOf(0.98f, 0.88f, 0.10f, 1.0f), 0.58f, AIDifficulty.EASY, carId = "apex_valkyrie", preferredLaneOffset = 1.8f)
         )
         for (p in profiles) {
             val carDef = CarDefinition.ALL_CARS.find { it.id == p.carId } ?: CarDefinition.ALL_CARS[0]
@@ -168,6 +174,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 maxSteerAngleRad = carDef.maxSteerAngleRad,
                 downforceCoeff = carDef.downforceCoeff,
                 dragCoeff = carDef.dragCoeff,
+                driveFrontRatio = carDef.driveFrontRatio,
                 powertrain = pt
             )
             aiOpponents.add(OpponentAIController(aiPhys, p, emptyList()))
@@ -207,6 +214,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             maxSteerAngleRad = car.maxSteerAngleRad,
             downforceCoeff = car.downforceCoeff,
             dragCoeff = car.dragCoeff,
+            driveFrontRatio = car.driveFrontRatio,
             tireModel = tireModel,
             powertrain = powertrain
         )
@@ -310,7 +318,99 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             ai.update(dt, playerVehicle.position, otherAiPositions)
         }
 
-        // Checkpoint & Lap Validation
+        // 1. Car-to-Car Soft Collisions (Player + AIs)
+        val allVehicles = mutableListOf<VehiclePhysics>().apply {
+            add(playerVehicle)
+            addAll(aiOpponents.map { it.vehicle })
+        }
+
+        for (i in 0 until allVehicles.size) {
+            for (j in i + 1 until allVehicles.size) {
+                val v1 = allVehicles[i]
+                val v2 = allVehicles[j]
+                val dx = v1.position.x - v2.position.x
+                val dz = v1.position.z - v2.position.z
+                val distSq = dx * dx + dz * dz
+                val minDist = 3.2f
+                if (distSq < minDist * minDist && distSq > 0.001f) {
+                    val dist = kotlin.math.sqrt(distSq)
+                    val overlap = minDist - dist
+                    val nx = dx / dist
+                    val nz = dz / dist
+
+                    v1.position.x += nx * overlap * 0.5f
+                    v1.position.z += nz * overlap * 0.5f
+                    v2.position.x -= nx * overlap * 0.5f
+                    v2.position.z -= nz * overlap * 0.5f
+
+                    val v1x = v1.forwardVelocity * kotlin.math.sin(v1.headingAngleRad)
+                    val v1z = v1.forwardVelocity * kotlin.math.cos(v1.headingAngleRad)
+                    val v2x = v2.forwardVelocity * kotlin.math.sin(v2.headingAngleRad)
+                    val v2z = v2.forwardVelocity * kotlin.math.cos(v2.headingAngleRad)
+
+                    val relVelX = v1x - v2x
+                    val relVelZ = v1z - v2z
+                    val impactMag = kotlin.math.sqrt((relVelX * relVelX + relVelZ * relVelZ).toDouble()).toFloat()
+                    if (impactMag > 2.0f) {
+                        audioEngine.triggerCollision((impactMag / 14f).coerceIn(0.4f, 1.4f))
+                    }
+                }
+            }
+        }
+
+        // 2. Barrier Collision Audio Feedback
+        if (playerVehicle.hasCollidedBarrier && playerVehicle.speedKmh > 12f) {
+            audioEngine.triggerCollision((playerVehicle.speedKmh / 55f).coerceIn(0.4f, 1.3f))
+        }
+
+        // 3. Rumble Strip / Kerb Audio Detection
+        var onKerb = false
+        var playerWpIdx = 0
+        if (waypoints.isNotEmpty()) {
+            var bestDistSq = Float.MAX_VALUE
+            for (idx in waypoints.indices) {
+                val wp = waypoints[idx]
+                val dSq = (playerVehicle.position.x - wp.x) * (playerVehicle.position.x - wp.x) +
+                        (playerVehicle.position.z - wp.z) * (playerVehicle.position.z - wp.z)
+                if (dSq < bestDistSq) {
+                    bestDistSq = dSq
+                    playerWpIdx = idx
+                }
+            }
+            if (playerVehicle.speedKmh > 18f) {
+                val distToCenter = kotlin.math.sqrt(bestDistSq)
+                onKerb = distToCenter in 5.6f..7.8f
+            }
+        }
+        audioEngine.isOnKerb = onKerb
+
+        // 4. Opponent Spatial Audio (Closest competitor to player)
+        var closestAiDist = Float.MAX_VALUE
+        var closestAi: OpponentAIController? = null
+        for (ai in aiOpponents) {
+            val d = playerVehicle.position.distanceTo(ai.vehicle.position)
+            if (d < closestAiDist) {
+                closestAiDist = d
+                closestAi = ai
+            }
+        }
+        if (closestAi != null && closestAiDist < 35f) {
+            audioEngine.opponentDistance = closestAiDist
+            audioEngine.opponentRpm = closestAi.vehicle.powertrain.currentRpm
+
+            val toAiX = closestAi.vehicle.position.x - playerVehicle.position.x
+            val toAiZ = closestAi.vehicle.position.z - playerVehicle.position.z
+            val forwardX = kotlin.math.sin(playerVehicle.headingAngleRad)
+            val forwardZ = kotlin.math.cos(playerVehicle.headingAngleRad)
+            val rightX = forwardZ
+            val rightZ = -forwardX
+            val latRel = toAiX * rightX + toAiZ * rightZ
+            audioEngine.opponentPan = (latRel / 10f).coerceIn(-1.0f, 1.0f)
+        } else {
+            audioEngine.opponentDistance = 100f
+        }
+
+        // 5. Checkpoint & Lap Validation
         if (!raceTiming.raceFinished && track != null && waypoints.isNotEmpty()) {
             raceTiming.currentLapTimeSec += dt
 
@@ -352,8 +452,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (_activeRaceMode.value == RaceMode.CIRCUIT_RACE && raceTiming.currentLap >= raceTiming.totalLaps) {
                     raceTiming.raceFinished = true
-                    raceTiming.finishPosition = computeRacePosition()
-                    awardRaceFinishCredits(raceTiming.finishPosition)
+                    val (finalPos, standings) = computeRaceStandings()
+                    raceTiming.finishPosition = finalPos
+                    lastRaceResults = standings
+                    awardRaceFinishCredits(finalPos)
                     _currentScreen.value = GameScreen.RACE_SUMMARY
                 } else {
                     raceTiming.currentLap++
@@ -362,14 +464,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Audio
+        // Audio engine parameter synchronization
         audioEngine.engineRpm = playerVehicle.powertrain.currentRpm
+        audioEngine.redlineRpm = playerVehicle.powertrain.redlineRpm
         audioEngine.throttleLoad = playerVehicle.throttle
         audioEngine.tireSlip = maxOf(playerVehicle.tireSlipRl, playerVehicle.tireSlipRr, playerVehicle.tireSlipFl)
         audioEngine.turboBoost = playerVehicle.powertrain.turboBoostBar
         if (playerVehicle.powertrain.exhaustBackfireTrigger) {
             audioEngine.triggerPop = true
         }
+
+        // Update real-time leaderboard
+        val (_, currentStandings) = computeRaceStandings()
+        _leaderboard.value = currentStandings
 
         updateTelemetryState()
     }
@@ -380,34 +487,105 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         sectorDeltaText = if (delta > 0) "+%.2fs".format(delta) else "%.2fs".format(delta)
     }
 
-    private fun computeRacePosition(): Int {
-        val track = renderer?.trackModel ?: return 1
-        val waypoints = track.waypoints
-        if (waypoints.isEmpty()) return 1
+    private fun computeRaceStandings(): Pair<Int, List<com.example.racing.model.LeaderboardRacer>> {
+        val track = renderer?.trackModel
+        val waypoints = track?.waypoints ?: return Pair(1, emptyList())
+        if (waypoints.isEmpty()) return Pair(1, emptyList())
 
-        val playerDist = getTrackProgress(playerVehicle.position, waypoints)
-        var pos = 1
-        for (ai in aiOpponents) {
-            val aiDist = getTrackProgress(ai.vehicle.position, waypoints)
-            if (aiDist > playerDist) {
-                pos++
-            }
-        }
-        return pos
-    }
+        val count = waypoints.size
 
-    private fun getTrackProgress(pos: Vector3f, waypoints: List<Vector3f>): Float {
+        // 1. Calculate player total progress
+        val playerPos = playerVehicle.position
         var closestIdx = 0
         var closestDistSq = Float.MAX_VALUE
         for (i in waypoints.indices) {
             val wp = waypoints[i]
-            val dSq = (pos.x - wp.x) * (pos.x - wp.x) + (pos.z - wp.z) * (pos.z - wp.z)
+            val dSq = (playerPos.x - wp.x) * (playerPos.x - wp.x) + (playerPos.z - wp.z) * (playerPos.z - wp.z)
             if (dSq < closestDistSq) {
                 closestDistSq = dSq
                 closestIdx = i
             }
         }
-        return closestIdx.toFloat() / waypoints.size
+        val playerTotalProgress = (raceTiming.currentLap - 1) * count + closestIdx
+
+        data class StandingEntry(
+            val name: String,
+            val carName: String,
+            val color: FloatArray,
+            val currentLap: Int,
+            val bestLapTimeSec: Float,
+            val totalProgress: Float,
+            val isPlayer: Boolean
+        )
+
+        val entries = mutableListOf<StandingEntry>()
+        val playerCar = _selectedCar.value
+        entries.add(
+            StandingEntry(
+                name = "YOU",
+                carName = playerCar.name,
+                color = getActiveColor(),
+                currentLap = raceTiming.currentLap,
+                bestLapTimeSec = raceTiming.bestLapTimeSec,
+                totalProgress = playerTotalProgress.toFloat(),
+                isPlayer = true
+            )
+        )
+
+        for (ai in aiOpponents) {
+            val aiCarDef = CarDefinition.ALL_CARS.find { it.id == ai.profile.carId } ?: CarDefinition.ALL_CARS[0]
+            entries.add(
+                StandingEntry(
+                    name = ai.profile.name,
+                    carName = aiCarDef.name,
+                    color = ai.profile.carColor,
+                    currentLap = ai.currentLap,
+                    bestLapTimeSec = ai.bestLapTimeSec,
+                    totalProgress = ai.getTrackProgress(waypoints),
+                    isPlayer = false
+                )
+            )
+        }
+
+        // Sort descending by totalProgress
+        entries.sortByDescending { it.totalProgress }
+
+        val leaderProgress = entries.firstOrNull()?.totalProgress ?: 1f
+        var playerPosition = 1
+
+        val resultList = mutableListOf<com.example.racing.model.LeaderboardRacer>()
+        for (i in entries.indices) {
+            val e = entries[i]
+            val pos = i + 1
+            if (e.isPlayer) {
+                playerPosition = pos
+            }
+            val gapText = if (pos == 1) {
+                "LEADER"
+            } else {
+                val progressDiff = leaderProgress - e.totalProgress
+                val approxGapSec = (progressDiff * 0.22f).coerceAtLeast(0.1f)
+                "+%.2fs".format(approxGapSec)
+            }
+            resultList.add(
+                com.example.racing.model.LeaderboardRacer(
+                    position = pos,
+                    name = e.name,
+                    carName = e.carName,
+                    color = e.color,
+                    currentLap = e.currentLap,
+                    bestLapTimeSec = e.bestLapTimeSec,
+                    gapToLeaderText = gapText,
+                    isPlayer = e.isPlayer
+                )
+            )
+        }
+
+        return Pair(playerPosition, resultList)
+    }
+
+    private fun computeRacePosition(): Int {
+        return computeRaceStandings().first
     }
 
     private fun awardRaceFinishCredits(position: Int) {

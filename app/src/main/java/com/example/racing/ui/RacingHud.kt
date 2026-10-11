@@ -111,15 +111,22 @@ fun RacingHud(
         }
     }
 
+    var touchSteerSmooth by remember { mutableFloatStateOf(0f) }
+
+    val touchTarget = when {
+        isLeftPressed && !isRightPressed -> -1.0f
+        isRightPressed && !isLeftPressed -> 1.0f
+        else -> 0.0f
+    }
+    val rampSpeed = if (touchTarget == 0f) 0.35f else 0.28f
+    touchSteerSmooth += (touchTarget - touchSteerSmooth) * rampSpeed
+    if (abs(touchSteerSmooth) < 0.01f && touchTarget == 0f) touchSteerSmooth = 0f
+
     // Determine steer input based on active control type
     val steerValue = when (controlType) {
         ControlType.VIRTUAL_WHEEL -> (wheelSteerAngle / 60f).coerceIn(-1.0f, 1.0f)
         ControlType.TILT_GYRO -> tiltSteerValue
-        ControlType.TOUCH_BUTTONS -> when {
-            isLeftPressed && !isRightPressed -> -1.0f
-            isRightPressed && !isLeftPressed -> 1.0f
-            else -> 0.0f
-        }
+        ControlType.TOUCH_BUTTONS -> touchSteerSmooth
     }
 
     viewModel.setSteerInput(steerValue)

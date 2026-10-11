@@ -18,7 +18,8 @@ data class CarDefinition(
     val cgHeightM: Float = 0.36f,
     val maxSteerAngleRad: Float = 0.58f,
     val downforceCoeff: Float = 0.75f,
-    val dragCoeff: Float = 0.31f
+    val dragCoeff: Float = 0.31f,
+    val driveFrontRatio: Float = 0.0f
 ) {
     companion object {
         val ALL_CARS = listOf(
@@ -46,7 +47,8 @@ data class CarDefinition(
                 cgHeightM = 0.36f,
                 maxSteerAngleRad = 0.58f,
                 downforceCoeff = 0.85f,
-                dragCoeff = 0.31f
+                dragCoeff = 0.31f,
+                driveFrontRatio = 0.35f
             ),
             CarDefinition(
                 id = "apex_spirit_86",
@@ -71,7 +73,8 @@ data class CarDefinition(
                 cgHeightM = 0.38f,
                 maxSteerAngleRad = 0.68f, // High angle drift lock
                 downforceCoeff = 0.40f,
-                dragCoeff = 0.34f
+                dragCoeff = 0.34f,
+                driveFrontRatio = 0.0f
             ),
             CarDefinition(
                 id = "apex_monza_v10",
@@ -96,7 +99,8 @@ data class CarDefinition(
                 cgHeightM = 0.30f,
                 maxSteerAngleRad = 0.50f, // Sharp high-speed tracking
                 downforceCoeff = 1.45f,
-                dragCoeff = 0.28f
+                dragCoeff = 0.28f,
+                driveFrontRatio = 0.15f
             )
         )
     }

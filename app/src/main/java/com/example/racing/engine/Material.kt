@@ -155,7 +155,7 @@ data class Material(
         )
         // Bitumen aggregate dry racing asphalt with textured micro-roughness
         val ASPHALT_DRY = Material(
-            color = floatArrayOf(0.24f, 0.25f, 0.27f, 1.0f),
+            color = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
             specular = floatArrayOf(0.25f, 0.25f, 0.26f, 1.0f),
             shininess = 16f,
             metallic = 0.04f,
@@ -164,12 +164,21 @@ data class Material(
         )
         // Rain-soaked wet asphalt with high anisotropic specular sheen and puddle reflections
         val ASPHALT_WET = Material(
-            color = floatArrayOf(0.12f, 0.13f, 0.15f, 1.0f),
+            color = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
             specular = floatArrayOf(0.90f, 0.92f, 0.98f, 1.0f),
             shininess = 100f,
             metallic = 0.38f,
             roughness = 0.15f,
             clearcoat = 0.95f
+        )
+        // Multi-textured environmental scenery with vibrant vertex-colored surfaces
+        val ENVIRONMENT_SCENERY = Material(
+            color = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
+            specular = floatArrayOf(0.35f, 0.35f, 0.38f, 1.0f),
+            shininess = 20f,
+            metallic = 0.05f,
+            roughness = 0.70f,
+            clearcoat = 0.0f
         )
         // Grassy verge / infield terrain
         val GRASS = Material(

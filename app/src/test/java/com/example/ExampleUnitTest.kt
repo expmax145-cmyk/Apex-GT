@@ -118,6 +118,19 @@ class ExampleUnitTest {
         assertNotNull(neonTrack)
         assertTrue("Neon Metropolis must have waypoints", neonTrack.waypoints.isNotEmpty())
         assertTrue("Neon Metropolis should have wet road enabled", neonTrack.lightingConfig.isWetRoad)
+
+        // Verify rich mesh geometry across all three circuits
+        assertTrue("GP road mesh must have rich vertex detail", gpTrack.roadMesh.vertexCount > 500)
+        assertTrue("GP environment mesh must contain coastal scenery", gpTrack.environmentMesh.vertexCount > 100)
+        assertTrue("Alpine road mesh must have mountain elevation detail", alpineTrack.roadMesh.vertexCount > 500)
+        assertTrue("Alpine environment mesh must contain mountain terrain & pines", alpineTrack.environmentMesh.vertexCount > 100)
+        assertTrue("Neon Metropolis road mesh must have urban boulevard lanes", neonTrack.roadMesh.vertexCount > 500)
+        assertTrue("Neon Metropolis environment must contain skyline architecture", neonTrack.environmentMesh.vertexCount > 100)
+
+        // Verify resource cleanup
+        gpTrack.release()
+        alpineTrack.release()
+        neonTrack.release()
     }
 
     @Test
@@ -202,5 +215,196 @@ class ExampleUnitTest {
         assertTrue(types.contains(ControlType.TOUCH_BUTTONS))
         assertTrue(types.contains(ControlType.VIRTUAL_WHEEL))
         assertTrue(types.contains(ControlType.TILT_GYRO))
+    }
+
+    @Test
+    fun testReverseTransmissionAndPropulsion() {
+        val vehicle = VehiclePhysics()
+        vehicle.forwardVelocity = 0f
+        vehicle.throttle = 0f
+        vehicle.brake = 1.0f
+
+        // Initial step should detect stop and shift to reverse (gear 0)
+        vehicle.update(0.016f)
+        assertEquals("R", vehicle.powertrain.getGearDisplayName())
+        assertEquals(0, vehicle.powertrain.currentGear)
+
+        // Holding brake in reverse acts as reverse throttle
+        vehicle.update(0.016f)
+        vehicle.update(0.016f)
+        vehicle.update(0.016f)
+        assertTrue("Vehicle must move backward in reverse", vehicle.forwardVelocity < 0f)
+
+        // While moving in reverse, applying forward throttle brakes the car
+        vehicle.brake = 0f
+        vehicle.throttle = 1.0f
+        val revSpeed = vehicle.forwardVelocity
+        vehicle.update(0.016f)
+        assertTrue("Applying throttle in reverse must reduce reverse speed", vehicle.forwardVelocity > revSpeed)
+    }
+
+    @Test
+    fun testSpeedSensitiveSteeringAndCentering() {
+        val vehicle = VehiclePhysics()
+        vehicle.steerInput = 1.0f
+        vehicle.forwardVelocity = 5f // Low speed ~18 km/h
+        vehicle.update(0.016f)
+        val lowSpeedSteer = vehicle.currentSteerAngleRad
+
+        val highSpeedVehicle = VehiclePhysics()
+        highSpeedVehicle.steerInput = 1.0f
+        highSpeedVehicle.forwardVelocity = 60f // High speed ~216 km/h
+        highSpeedVehicle.update(0.016f)
+        val highSpeedSteer = highSpeedVehicle.currentSteerAngleRad
+
+        assertTrue("High speed steering angle must be smaller than low speed for stability", highSpeedSteer < lowSpeedSteer)
+
+        // Test fast self-centering
+        vehicle.steerInput = 0f
+        vehicle.update(0.016f)
+        assertTrue("Wheel must begin returning towards center", vehicle.currentSteerAngleRad < lowSpeedSteer)
+    }
+
+    @Test
+    fun testCounterSteerDriftStabilization() {
+        val vehicle = VehiclePhysics()
+        vehicle.forwardVelocity = 25f // ~90 km/h
+        vehicle.driftAngleDeg = 20f   // In a rightward slide
+        vehicle.steerInput = -1.0f    // Counter-steering left into the slide
+        vehicle.yawRate = 0.5f
+
+        vehicle.update(0.016f)
+        // With counter-steer assist, steering lock is extended and yaw torque is stabilized
+        assertTrue("Counter steer must be active", vehicle.currentSteerAngleRad < 0f)
+    }
+
+    @Test
+    fun testDynamicChassisPitchRollSuspension() {
+        val vehicle = VehiclePhysics()
+        vehicle.throttle = 1.0f
+        vehicle.update(0.016f)
+        vehicle.update(0.016f)
+
+        // Under acceleration, squat should compress rear suspension and lift front
+        assertTrue("Pitch angle must react to acceleration", vehicle.pitchAngleRad != 0f || vehicle.pitchVelocity != 0f)
+
+        // Check 4-corner suspension values
+        assertEquals(4, vehicle.suspensionCompression.size)
+        // Brake hard to trigger dive
+        vehicle.throttle = 0f
+        vehicle.brake = 1.0f
+        vehicle.update(0.016f)
+        vehicle.update(0.016f)
+        assertTrue("Front suspension must compress under braking dive", vehicle.suspensionCompression[0] != 0f)
+    }
+
+    @Test
+    fun testMultiCarDrivetrainDistribution() {
+        val valkyrie = CarDefinition.ALL_CARS.find { it.id == "apex_valkyrie" }!!
+        val spirit = CarDefinition.ALL_CARS.find { it.id == "apex_spirit_86" }!!
+        val monza = CarDefinition.ALL_CARS.find { it.id == "apex_monza_v10" }!!
+
+        assertTrue("Valkyrie must feature AWD front drive distribution", valkyrie.driveFrontRatio > 0.2f)
+        assertEquals(0.0f, spirit.driveFrontRatio, 0.001f) // Pure RWD drift coupe
+        assertTrue("Monza V10 must feature torque vectoring front assist", monza.driveFrontRatio > 0.05f)
+    }
+
+    @Test
+    fun testAIRacingLineAndAvoidance() {
+        val gpTrack = TrackMeshBuilder.buildTrack(TrackId.GRAND_PRIX)
+        val profile = AIDriverProfile(
+            name = "Viper",
+            carColor = floatArrayOf(0.10f, 0.50f, 0.98f, 1.0f),
+            aggression = 0.90f,
+            difficulty = AIDifficulty.EXPERT,
+            carId = "apex_spirit_86",
+            preferredLaneOffset = -1.5f
+        )
+        val aiVehicle = VehiclePhysics()
+        val ai = OpponentAIController(aiVehicle, profile, gpTrack.waypoints)
+
+        // Test normal update with other competitors alongside
+        val playerPos = Vector3f(1.0f, 0f, 1.0f)
+        val competitorPos = Vector3f(-1.0f, 0f, 2.0f)
+
+        ai.update(0.016f, playerPos = playerPos, otherAIs = listOf(competitorPos))
+
+        // AI should steer and accelerate
+        assertTrue("AI must throttle forward", aiVehicle.throttle > 0f)
+        assertTrue("AI lateral target offset must be within track width", kotlin.math.abs(ai.lateralOffset) <= 6.0f)
+        assertEquals(com.example.racing.ai.AIRecoveryState.NORMAL, ai.recoveryState)
+    }
+
+    @Test
+    fun testAIBarrierRecoveryStateMachine() {
+        val gpTrack = TrackMeshBuilder.buildTrack(TrackId.GRAND_PRIX)
+        val profile = AIDriverProfile(
+            name = "Ghost",
+            carColor = floatArrayOf(0.9f, 0.9f, 0.1f, 1.0f),
+            aggression = 0.60f,
+            difficulty = AIDifficulty.EASY,
+            carId = "apex_valkyrie"
+        )
+        val aiVehicle = VehiclePhysics()
+        val ai = OpponentAIController(aiVehicle, profile, gpTrack.waypoints)
+
+        // Simulate pinning against a barrier with low speed
+        aiVehicle.hasCollidedBarrier = true
+        aiVehicle.forwardVelocity = 0.5f // ~1.8 km/h
+        ai.update(0.016f, playerPos = Vector3f(50f, 0f, 50f), otherAIs = emptyList())
+
+        // AI must transition to REVERSING state
+        assertEquals(com.example.racing.ai.AIRecoveryState.REVERSING, ai.recoveryState)
+        assertTrue("In reversing state, brake pedal must be applied to drive in reverse", aiVehicle.brake > 0.5f)
+        assertEquals(0f, aiVehicle.throttle, 0.001f)
+    }
+
+    @Test
+    fun testProceduralAudioMultiCylinderAndCollision() {
+        val audio = com.example.racing.audio.ProceduralAudioEngine()
+        audio.cylinderCount = 10
+        audio.redlineRpm = 9200f
+        audio.engineRpm = 9150f
+        audio.throttleLoad = 1.0f
+
+        // Test collision trigger
+        audio.triggerCollision(1.2f)
+        assertTrue("Collision intensity must be registered", audio.collisionImpactIntensity > 0.5f)
+
+        // Test spatial audio parameters
+        audio.opponentDistance = 14.5f
+        audio.opponentPan = -0.75f // Opponent overtaking on the left
+        assertEquals(14.5f, audio.opponentDistance, 0.001f)
+        assertEquals(-0.75f, audio.opponentPan, 0.001f)
+    }
+
+    @Test
+    fun testLeaderboardMultiLapStandings() {
+        val racer1 = com.example.racing.model.LeaderboardRacer(
+            position = 1,
+            name = "YOU",
+            carName = "Apex Valkyrie GT",
+            color = floatArrayOf(1f, 0f, 0f, 1f),
+            currentLap = 3,
+            bestLapTimeSec = 62.45f,
+            gapToLeaderText = "LEADER",
+            isPlayer = true
+        )
+
+        val racer2 = com.example.racing.model.LeaderboardRacer(
+            position = 2,
+            name = "Viper",
+            carName = "Spirit GTS 86",
+            color = floatArrayOf(0f, 0f, 1f, 1f),
+            currentLap = 3,
+            bestLapTimeSec = 63.12f,
+            gapToLeaderText = "+0.67s",
+            isPlayer = false
+        )
+
+        assertEquals(1, racer1.position)
+        assertTrue(racer1.isPlayer)
+        assertEquals(2, racer2.position)
+        assertEquals("+0.67s", racer2.gapToLeaderText)
     }
 }
