@@ -161,12 +161,21 @@ class RacingRenderer(
         activeShader.setFloat("u_FogNear", lighting.fogNear)
         activeShader.setFloat("u_FogFar", lighting.fogFar)
 
-        // Wet Road Specular Sheen
-        val wetFactor = if (lighting.isWetRoad && graphicsQuality != "LOW") 1.0f else 0.0f
+        // Wet Road Specular Sheen (LOW = 0, MEDIUM = 0.65, HIGH = 1.0)
+        val wetFactor = when {
+            !lighting.isWetRoad -> 0.0f
+            graphicsQuality == "LOW" -> 0.0f
+            graphicsQuality == "MEDIUM" -> 0.65f
+            else -> 1.0f
+        }
         activeShader.setFloat("u_WetRoadActive", wetFactor)
 
-        // Player Headlight Projection
-        if (!isShowroomMode && (lighting.isWetRoad || activeTrack.trackId == TrackId.NEON_METROPOLIS)) {
+        // Player Headlight Projection (LOW = off, MEDIUM = 1.1f, HIGH = 1.8f)
+        val enableHeadlights = !isShowroomMode &&
+            graphicsQuality != "LOW" &&
+            (lighting.isWetRoad || activeTrack.trackId == TrackId.NEON_METROPOLIS)
+
+        if (enableHeadlights) {
             val pHead = playerVehicle.headingAngleRad
             val forwardX = sin(pHead)
             val forwardZ = cos(pHead)
@@ -178,7 +187,8 @@ class RacingRenderer(
             )
             activeShader.setVec3("u_HeadlightDir", forwardX, -0.08f, forwardZ)
             activeShader.setVec3("u_HeadlightColor", 0.95f, 0.98f, 1.0f)
-            activeShader.setFloat("u_HeadlightIntensity", 1.8f)
+            val hlIntensity = if (graphicsQuality == "HIGH") 1.8f else 1.1f
+            activeShader.setFloat("u_HeadlightIntensity", hlIntensity)
         } else {
             activeShader.setFloat("u_HeadlightIntensity", 0.0f)
         }
@@ -277,11 +287,13 @@ class RacingRenderer(
                     ps.emitExhaustFlame(exX, pPos.y + 0.28f, exZ)
                 }
 
-                // AI Opponents tire smoke
-                for (ai in aiOpponents) {
-                    if ((ai.vehicle.tireSlipRl > 0.35f || ai.vehicle.tireSlipRr > 0.35f) && ai.vehicle.speedKmh > 10f) {
-                        val aPos = ai.vehicle.position
-                        ps.emitTireSmoke(aPos.x, aPos.y, aPos.z, ai.vehicle.isOffRoad)
+                // AI Opponents tire smoke (HIGH only, skipped on MEDIUM to conserve mobile fill-rate)
+                if (graphicsQuality == "HIGH") {
+                    for (ai in aiOpponents) {
+                        if ((ai.vehicle.tireSlipRl > 0.35f || ai.vehicle.tireSlipRr > 0.35f) && ai.vehicle.speedKmh > 10f) {
+                            val aPos = ai.vehicle.position
+                            ps.emitTireSmoke(aPos.x, aPos.y, aPos.z, ai.vehicle.isOffRoad)
+                        }
                     }
                 }
 
@@ -423,8 +435,14 @@ class RacingRenderer(
             CameraView.CHASE_FAR -> 0.18f
         }
 
-        currentCamPos.lerpTo(targetCamPos, smoothFactor)
-        currentCamTarget.lerpTo(targetLookAt, smoothFactor)
+        // Prevent wild camera jumps across the map when resetting or teleporting
+        if (currentCamPos.distanceTo(targetCamPos) > 50f) {
+            currentCamPos.set(targetCamPos)
+            currentCamTarget.set(targetLookAt)
+        } else {
+            currentCamPos.lerpTo(targetCamPos, smoothFactor)
+            currentCamTarget.lerpTo(targetLookAt, smoothFactor)
+        }
 
         viewMatrix.identity().lookAt(
             currentCamPos.x, currentCamPos.y, currentCamPos.z,
@@ -444,8 +462,13 @@ class RacingRenderer(
         val rollDeg = (vehicle.rollAngleRad * (180f / PI.toFloat()))
         val pitchDeg = (vehicle.pitchAngleRad * (180f / PI.toFloat()))
 
-        // A. Contact Shadow Quad (grounding the car to the road)
-        if (graphicsQuality != "LOW") {
+        // A. Contact Shadow Quad (LOW = none, MEDIUM = player only, HIGH = all vehicles)
+        val shouldDrawShadow = when (graphicsQuality) {
+            "LOW" -> false
+            "MEDIUM" -> (vehicle === playerVehicle)
+            else -> true
+        }
+        if (shouldDrawShadow) {
             modelMatrix.identity()
                 .translate(carPos.x, carPos.y - 0.32f, carPos.z)
                 .rotate(headingDeg, 0f, 1f, 0f)

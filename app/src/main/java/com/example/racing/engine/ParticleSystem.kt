@@ -71,10 +71,10 @@ class ParticleSystem(val maxParticles: Int = 160) {
             out vec4 fragColor;
 
             void main() {
-                // Radial soft circle puff
+                // Radial soft circle puff with compliant ascending smoothstep
                 float dist = length(v_UV - vec2(0.5));
                 if (dist > 0.5) discard;
-                float falloff = smoothstep(0.5, 0.0, dist);
+                float falloff = 1.0 - smoothstep(0.0, 0.5, dist);
                 fragColor = vec4(v_Color.rgb, v_Color.a * falloff);
             }
         """.trimIndent()

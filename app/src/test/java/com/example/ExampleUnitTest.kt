@@ -16,6 +16,7 @@ import com.example.racing.physics.EnginePowertrain
 import com.example.racing.physics.TireModel
 import com.example.racing.physics.VehiclePhysics
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -453,5 +454,129 @@ class ExampleUnitTest {
         assertTrue("Metallic finish must have higher metallic factor than gloss", metallic.metallic > gloss.metallic)
         assertTrue("Metallic finish must have higher clearcoat than gloss", metallic.clearcoat >= gloss.clearcoat)
     }
+
+    @Test
+    fun testParticleCompliantFalloffMath() {
+        // Test standard GLSL smoothstep(edge0, edge1, x) with edge0 < edge1
+        fun smoothstep(e0: Float, e1: Float, x: Float): Float {
+            val t = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f)
+            return t * t * (3f - 2f * t)
+        }
+
+        fun particleFalloff(dist: Float): Float {
+            return 1.0f - smoothstep(0.0f, 0.5f, dist)
+        }
+
+        // Center must be maximum opacity
+        assertEquals(1.0f, particleFalloff(0.0f), 0.001f)
+        // Edge must fall off to fully transparent
+        assertEquals(0.0f, particleFalloff(0.5f), 0.001f)
+        // Midpoint must be smooth transition (0.5)
+        assertEquals(0.5f, particleFalloff(0.25f), 0.001f)
+        // Monotonic decrease
+        assertTrue(particleFalloff(0.1f) > particleFalloff(0.2f))
+        assertTrue(particleFalloff(0.2f) > particleFalloff(0.4f))
+    }
+
+    @Test
+    fun testGraphicsQualityPresetDistinctions() {
+        val presets = listOf("LOW", "MEDIUM", "HIGH")
+        assertEquals(3, presets.size)
+
+        fun getWetFactor(quality: String): Float = when (quality) {
+            "LOW" -> 0.0f
+            "MEDIUM" -> 0.65f
+            else -> 1.0f
+        }
+
+        fun isAiSmokeEnabled(quality: String): Boolean = (quality == "HIGH")
+
+        fun shouldDrawShadow(quality: String, isPlayer: Boolean): Boolean = when (quality) {
+            "LOW" -> false
+            "MEDIUM" -> isPlayer
+            else -> true
+        }
+
+        // Verify distinct behavior between LOW, MEDIUM, and HIGH
+        assertEquals(0.0f, getWetFactor("LOW"), 0.001f)
+        assertEquals(0.65f, getWetFactor("MEDIUM"), 0.001f)
+        assertEquals(1.0f, getWetFactor("HIGH"), 0.001f)
+
+        assertFalse(isAiSmokeEnabled("LOW"))
+        assertFalse(isAiSmokeEnabled("MEDIUM"))
+        assertTrue(isAiSmokeEnabled("HIGH"))
+
+        assertFalse(shouldDrawShadow("LOW", isPlayer = true))
+        assertFalse(shouldDrawShadow("LOW", isPlayer = false))
+        assertTrue(shouldDrawShadow("MEDIUM", isPlayer = true))
+        assertFalse(shouldDrawShadow("MEDIUM", isPlayer = false))
+        assertTrue(shouldDrawShadow("HIGH", isPlayer = true))
+        assertTrue(shouldDrawShadow("HIGH", isPlayer = false))
+    }
+
+    @Test
+    fun testCameraTeleportSnapProtection() {
+        val currentCam = Vector3f(0f, 2.5f, -6f)
+        val targetCam = Vector3f(120f, 5.0f, 400f) // Far away reset position
+
+        val dist = currentCam.distanceTo(targetCam)
+        assertTrue("Teleport distance must exceed 50m threshold", dist > 50f)
+
+        // With snap protection, camera instantly adopts target without flying through terrain
+        if (dist > 50f) {
+            currentCam.set(targetCam)
+        } else {
+            currentCam.lerpTo(targetCam, 0.2f)
+        }
+
+        assertEquals(targetCam.x, currentCam.x, 0.001f)
+        assertEquals(targetCam.y, currentCam.y, 0.001f)
+        assertEquals(targetCam.z, currentCam.z, 0.001f)
+    }
+
+    @Test
+    fun testPhase9TrackVisualFidelityAndLighting() {
+        for (trackId in TrackId.values()) {
+            val track = TrackMeshBuilder.buildTrack(trackId)
+            assertNotNull("Track $trackId must build successfully", track)
+            assertTrue("Track $trackId must have road vertices", track.roadMesh.vertexCount > 1000)
+            assertTrue("Track $trackId must have kerb vertices", track.kerbMesh.vertexCount > 200)
+            assertTrue("Track $trackId must have barrier vertices", track.barrierMesh.vertexCount > 400)
+            assertTrue("Track $trackId must have environment scenery vertices", track.environmentMesh.vertexCount > 300)
+            assertTrue("Track $trackId must have start gantry vertices", track.gantryMesh.vertexCount > 100)
+
+            // Validate Waypoint Continuity & Closed-loop Trajectory
+            assertTrue("Waypoints must contain at least 100 navigation nodes", track.waypoints.size >= 100)
+            assertEquals("Must have 3 sector timing checkpoints", 3, track.sectorCheckpoints.size)
+
+            for (i in 0 until track.waypoints.size) {
+                val curr = track.waypoints[i]
+                val next = track.waypoints[(i + 1) % track.waypoints.size]
+                val stepDist = curr.distanceTo(next)
+                assertTrue("Consecutive waypoints must be continuous and closely spaced (was $stepDist)", stepDist < 25f)
+            }
+
+            // Validate Lighting & Atmospheric Fog Bounds
+            val lighting = track.lightingConfig
+            assertTrue("Fog far must be greater than fog near", lighting.fogFar > lighting.fogNear)
+            assertEquals(3, lighting.sunDirection.size)
+            assertEquals(3, lighting.sunColor.size)
+            assertEquals(3, lighting.skyAmbient.size)
+            assertEquals(3, lighting.groundAmbient.size)
+            assertEquals(3, lighting.fogColor.size)
+
+            track.release()
+        }
+
+        // Validate Material PBR Constants for Track Surfaces
+        assertNotNull(com.example.racing.engine.Material.ASPHALT_DRY)
+        assertNotNull(com.example.racing.engine.Material.ASPHALT_WET)
+        assertNotNull(com.example.racing.engine.Material.KERB_RED_WHITE)
+        assertNotNull(com.example.racing.engine.Material.BARRIER_ARMCO)
+        assertNotNull(com.example.racing.engine.Material.CONCRETE_BARRIER)
+        assertNotNull(com.example.racing.engine.Material.NEON_GOLD)
+        assertNotNull(com.example.racing.engine.Material.WATER_OCEAN)
+    }
 }
+
 

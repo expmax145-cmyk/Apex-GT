@@ -230,6 +230,40 @@ data class Material(
             shininess = 80f,
             emission = floatArrayOf(2.8f, 0.4f, 2.4f, 1.0f)
         )
+        // High-output neon gold commercial lighting
+        val NEON_GOLD = Material(
+            color = floatArrayOf(1.0f, 0.75f, 0.10f, 1.0f),
+            specular = floatArrayOf(1.0f, 0.9f, 0.4f, 1.0f),
+            shininess = 80f,
+            emission = floatArrayOf(2.5f, 1.8f, 0.2f, 1.0f)
+        )
+        // Architectural precast concrete walls & safety jersey barriers
+        val CONCRETE_BARRIER = Material(
+            color = floatArrayOf(0.75f, 0.76f, 0.78f, 1.0f),
+            specular = floatArrayOf(0.20f, 0.20f, 0.22f, 1.0f),
+            shininess = 16f,
+            metallic = 0.02f,
+            roughness = 0.75f,
+            clearcoat = 0.0f
+        )
+        // High-contrast outdoor sponsor hoarding board
+        val SPONSOR_BOARD = Material(
+            color = floatArrayOf(0.95f, 0.95f, 0.98f, 1.0f),
+            specular = floatArrayOf(0.45f, 0.45f, 0.48f, 1.0f),
+            shininess = 40f,
+            metallic = 0.10f,
+            roughness = 0.35f,
+            clearcoat = 0.40f
+        )
+        // Coastal ocean bay water with high specular reflection
+        val WATER_OCEAN = Material(
+            color = floatArrayOf(0.06f, 0.38f, 0.62f, 0.95f),
+            specular = floatArrayOf(0.95f, 0.95f, 1.0f, 1.0f),
+            shininess = 120f,
+            metallic = 0.15f,
+            roughness = 0.05f,
+            clearcoat = 0.95f
+        )
         // Grounding contact shadow quad
         val CONTACT_SHADOW = Material(
             color = floatArrayOf(0.02f, 0.02f, 0.03f, 0.78f),

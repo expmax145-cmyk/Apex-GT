@@ -6,10 +6,11 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Procedural 3D Automotive Mesh Generator for Apex GT.
+ * Procedural 3D Automotive Mesh Generator for Apex GT — Phase 8 Visual Fidelity.
  * Synthesizes high-fidelity vehicle bodywork with authentic automotive proportions,
  * sculpted aerodynamic surfaces, functional wheel arches, curved glass greenhouses,
- * detailed cockpits, multi-element wings, and realistic wheel assemblies.
+ * detailed cockpits, multi-element wings, and realistic wheel assemblies with
+ * ventilated rotors, multi-piston calipers, and stepped alloy rims.
  */
 object CarMeshBuilder {
 
@@ -45,52 +46,63 @@ object CarMeshBuilder {
 
         // Color palettes
         val bodyColor = floatArrayOf(0.96f, 0.96f, 0.97f, 1.0f) // Takes player paint multiplier
-        val carbonColor = floatArrayOf(0.12f, 0.12f, 0.14f, 1.0f)
-        val glossBlack = floatArrayOf(0.08f, 0.08f, 0.09f, 1.0f)
+        val carbonColor = floatArrayOf(0.11f, 0.11f, 0.13f, 1.0f)
+        val glossBlack = floatArrayOf(0.06f, 0.06f, 0.07f, 1.0f)
         val glassColor = floatArrayOf(0.18f, 0.24f, 0.32f, 0.85f)
         val lightColor = floatArrayOf(0.95f, 0.98f, 1.0f, 1.0f) // Xenon projector
         val taillightColor = floatArrayOf(0.95f, 0.10f, 0.10f, 1.0f) // Dynamic brake LED
         val interiorDark = floatArrayOf(0.07f, 0.07f, 0.08f, 1.0f)
         val metalTrim = floatArrayOf(0.85f, 0.86f, 0.88f, 1.0f)
         val rollCageColor = floatArrayOf(0.20f, 0.20f, 0.22f, 1.0f)
+        val mirrorGlass = floatArrayOf(0.82f, 0.88f, 0.95f, 0.95f)
 
         // A. Extended Carbon Front Splitter & Corner Dive Planes (Canards)
         md.addTrapezoid(
-            bottomMinX = -0.98f, bottomMaxX = 0.98f, bottomY = 0.08f, bottomMinZ = 1.85f, bottomMaxZ = 2.28f,
-            topMinX = -0.94f, topMaxX = 0.94f, topY = 0.13f, topMinZ = 1.90f, topMaxZ = 2.22f,
+            bottomMinX = -0.98f, bottomMaxX = 0.98f, bottomY = 0.07f, bottomMinZ = 1.85f, bottomMaxZ = 2.30f,
+            topMinX = -0.94f, topMaxX = 0.94f, topY = 0.12f, topMinZ = 1.90f, topMaxZ = 2.24f,
+            color = carbonColor
+        )
+        // Splitter central aerodynamic drop keel
+        md.addTrapezoid(
+            bottomMinX = -0.22f, bottomMaxX = 0.22f, bottomY = 0.04f, bottomMinZ = 2.05f, bottomMaxZ = 2.34f,
+            topMinX = -0.18f, topMaxX = 0.18f, topY = 0.09f, topMinZ = 2.08f, topMaxZ = 2.28f,
             color = carbonColor
         )
         // Aerodynamic endplate fences on splitter
-        md.addBox(-0.99f, 0.08f, 2.05f, -0.96f, 0.24f, 2.28f, carbonColor)
-        md.addBox(0.96f, 0.08f, 2.05f, 0.99f, 0.24f, 2.28f, carbonColor)
-        // Dual carbon dive planes (canards) on front bumper sides
-        md.addDivePlane(-0.96f, 0.28f, 2.00f, -0.84f, 0.32f, 2.15f, isLeft = true, color = carbonColor)
-        md.addDivePlane(0.84f, 0.32f, 2.15f, 0.96f, 0.28f, 2.00f, isLeft = false, color = carbonColor)
-        md.addDivePlane(-0.95f, 0.38f, 1.92f, -0.85f, 0.42f, 2.06f, isLeft = true, color = carbonColor)
-        md.addDivePlane(0.85f, 0.42f, 2.06f, 0.95f, 0.38f, 1.92f, isLeft = false, color = carbonColor)
+        md.addBox(-0.99f, 0.07f, 2.05f, -0.95f, 0.25f, 2.30f, carbonColor)
+        md.addBox(0.95f, 0.07f, 2.05f, 0.99f, 0.25f, 2.30f, carbonColor)
+        // Dual carbon dive planes (canards) on front bumper sides with realistic pitch
+        md.addDivePlane(-0.96f, 0.27f, 2.02f, -0.83f, 0.32f, 2.18f, isLeft = true, color = carbonColor)
+        md.addDivePlane(0.83f, 0.32f, 2.18f, 0.96f, 0.27f, 2.02f, isLeft = false, color = carbonColor)
+        md.addDivePlane(-0.95f, 0.37f, 1.94f, -0.84f, 0.42f, 2.08f, isLeft = true, color = carbonColor)
+        md.addDivePlane(0.84f, 0.42f, 2.08f, 0.95f, 0.37f, 1.94f, isLeft = false, color = carbonColor)
 
-        // B. Front Bumper Fascia & Center Keel Intake Grille
-        md.addBox(-0.88f, 0.13f, 1.85f, 0.88f, 0.35f, 2.16f, bodyColor)
-        md.addBox(-0.52f, 0.14f, 2.12f, 0.52f, 0.30f, 2.18f, glossBlack) // Center intake recess
-        md.addBox(-0.84f, 0.14f, 2.08f, -0.56f, 0.28f, 2.16f, glossBlack) // Left brake duct
-        md.addBox(0.56f, 0.14f, 2.08f, 0.84f, 0.28f, 2.16f, glossBlack)  // Right brake duct
+        // B. Front Bumper Fascia & Center Keel Intake Grille with Honeycomb Backing
+        md.addBox(-0.88f, 0.12f, 1.85f, 0.88f, 0.36f, 2.18f, bodyColor)
+        // Center intake cavity with honeycomb dark backing
+        md.addBox(-0.54f, 0.13f, 2.14f, 0.54f, 0.32f, 2.19f, glossBlack)
+        // Center vertical intake dividing blade
+        md.addBox(-0.015f, 0.13f, 2.14f, 0.015f, 0.32f, 2.20f, carbonColor)
+        // Left & right front brake cooling duct cavities
+        md.addBox(-0.85f, 0.14f, 2.10f, -0.58f, 0.29f, 2.17f, glossBlack)
+        md.addBox(0.58f, 0.14f, 2.10f, 0.85f, 0.29f, 2.17f, glossBlack)
 
         // C. Sculpted Sloping Hood with Deep Aerodynamic Extraction Vents
         md.addCurvedSurface(
-            xLeft = -0.85f, xRight = 0.85f,
-            zFront = 2.15f, zBack = 1.08f,
+            xLeft = -0.86f, xRight = 0.86f,
+            zFront = 2.16f, zBack = 1.08f,
             yFront = 0.36f, yBack = 0.62f,
-            yCrown = 0.04f,
+            yCrown = 0.045f,
             color = bodyColor
         )
-        // Dual sculpted carbon hood extraction louvers
-        md.addBox(-0.54f, 0.48f, 1.30f, -0.16f, 0.54f, 1.75f, carbonColor)
-        md.addBox(0.16f, 0.48f, 1.30f, 0.54f, 0.54f, 1.75f, carbonColor)
-        // Louver slats
-        for (k in 0 until 4) {
-            val lz = 1.38f + k * 0.10f
-            md.addBox(-0.52f, 0.53f, lz, -0.18f, 0.56f, lz + 0.04f, glossBlack)
-            md.addBox(0.18f, 0.53f, lz, 0.52f, 0.56f, lz + 0.04f, glossBlack)
+        // Dual sculpted carbon hood extraction louvers with recessed extraction ramp
+        md.addBox(-0.55f, 0.47f, 1.28f, -0.15f, 0.54f, 1.76f, carbonColor)
+        md.addBox(0.15f, 0.47f, 1.28f, 0.55f, 0.54f, 1.76f, carbonColor)
+        // Louver slats with aerodynamic angled pitch
+        for (k in 0 until 5) {
+            val lz = 1.34f + k * 0.085f
+            md.addBox(-0.53f, 0.52f, lz, -0.17f, 0.56f, lz + 0.035f, glossBlack)
+            md.addBox(0.17f, 0.52f, lz, 0.53f, 0.56f, lz + 0.035f, glossBlack)
         }
 
         // D. Sculpted Front Wheel Fenders with Arched Cutouts (Wheel position FL/FR: z=1.35, y=0.35)
@@ -106,16 +118,26 @@ object CarMeshBuilder {
         )
 
         // E. Pinched Coke-Bottle Waistline & Side Radiator Intercooler Pods
-        md.addBox(-0.80f, 0.16f, -0.65f, -0.70f, 0.58f, 0.85f, bodyColor) // Pinched left door
-        md.addBox(0.70f, 0.16f, -0.65f, 0.80f, 0.58f, 0.85f, bodyColor)  // Pinched right door
+        md.addBox(-0.82f, 0.16f, -0.65f, -0.70f, 0.58f, 0.85f, bodyColor) // Pinched left door
+        md.addBox(0.70f, 0.16f, -0.65f, 0.82f, 0.58f, 0.85f, bodyColor)  // Pinched right door
+        // Door shut line groove & lower carbon ground effects
+        md.addBox(-0.83f, 0.18f, 0.10f, -0.81f, 0.56f, 0.12f, glossBlack)
+        md.addBox(0.81f, 0.18f, 0.10f, 0.83f, 0.56f, 0.12f, glossBlack)
+
         // Side aerodynamic floor skirts with rear vortex flick
-        md.addBox(-0.92f, 0.10f, -1.95f, -0.82f, 0.15f, 1.85f, carbonColor)
-        md.addBox(0.82f, 0.10f, -1.95f, 0.92f, 0.15f, 1.85f, carbonColor)
+        md.addBox(-0.93f, 0.09f, -1.95f, -0.82f, 0.14f, 1.85f, carbonColor)
+        md.addBox(0.82f, 0.09f, -1.95f, 0.93f, 0.14f, 1.85f, carbonColor)
+        // Rear rocker winglet flick
+        md.addBox(-0.94f, 0.14f, -0.85f, -0.85f, 0.28f, -0.72f, carbonColor)
+        md.addBox(0.85f, 0.14f, -0.85f, 0.94f, 0.28f, -0.72f, carbonColor)
+
         // Side intake pods feeding mid-engine radiators
-        md.addBox(-0.88f, 0.25f, -0.75f, -0.78f, 0.62f, -0.05f, bodyColor)
-        md.addBox(-0.86f, 0.30f, -0.15f, -0.80f, 0.58f, 0.05f, glossBlack) // Left intercooler intake
-        md.addBox(0.78f, 0.25f, -0.75f, 0.88f, 0.62f, -0.05f, bodyColor)
-        md.addBox(0.80f, 0.30f, -0.15f, 0.86f, 0.58f, 0.05f, glossBlack)  // Right intercooler intake
+        md.addBox(-0.89f, 0.24f, -0.75f, -0.78f, 0.63f, -0.05f, bodyColor)
+        md.addBox(-0.87f, 0.28f, -0.18f, -0.80f, 0.59f, 0.06f, glossBlack) // Left intercooler intake cavity
+        md.addBox(-0.86f, 0.32f, -0.08f, -0.81f, 0.55f, -0.04f, metalTrim)  // Aluminum intercooler fins
+        md.addBox(0.78f, 0.24f, -0.75f, 0.89f, 0.63f, -0.05f, bodyColor)
+        md.addBox(0.80f, 0.28f, -0.18f, 0.87f, 0.59f, 0.06f, glossBlack)  // Right intercooler intake cavity
+        md.addBox(0.81f, 0.32f, -0.08f, 0.86f, 0.55f, -0.04f, metalTrim)   // Aluminum intercooler fins
 
         // F. Muscular Rear Wheel Haunches (Wheel position RL/RR: z=-1.30, y=0.36)
         md.addCurvedWheelArch(
@@ -130,9 +152,8 @@ object CarMeshBuilder {
         )
 
         // G. Cockpit Canopy Greenhouse (Curved panoramic glass & roof)
-        // Aerodynamic roof canopy
         md.addCurvedSurface(
-            xLeft = -0.62f, xRight = 0.62f,
+            xLeft = -0.63f, xRight = 0.63f,
             zFront = 0.38f, zBack = -0.65f,
             yFront = 1.02f, yBack = 1.04f,
             yCrown = 0.04f,
@@ -141,17 +162,19 @@ object CarMeshBuilder {
         // Dorsal roof scoop (feeds mid-engine V8)
         md.addTrapezoid(
             bottomMinX = -0.14f, bottomMaxX = 0.14f, bottomY = 1.02f, bottomMinZ = -0.45f, bottomMaxZ = 0.25f,
-            topMinX = -0.10f, topMaxX = 0.10f, topY = 1.14f, topMinZ = -0.50f, topMaxZ = 0.20f,
+            topMinX = -0.10f, topMaxX = 0.10f, topY = 1.15f, topMinZ = -0.50f, topMaxZ = 0.20f,
             color = carbonColor
         )
-        md.addBox(-0.09f, 1.03f, 0.20f, 0.09f, 1.13f, 0.23f, glossBlack) // Scoop opening mouth
+        md.addBox(-0.09f, 1.04f, 0.20f, 0.09f, 1.14f, 0.24f, glossBlack) // Scoop opening mouth
 
-        // Raked Windshield
+        // Raked Windshield with Ceramic Frit Border
         val ws0 = md.addVertex(-0.70f, 0.62f, 1.08f, 0f, 0.55f, 0.83f, glassColor[0], glassColor[1], glassColor[2], glassColor[3])
         val ws1 = md.addVertex(0.70f, 0.62f, 1.08f, 0f, 0.55f, 0.83f, glassColor[0], glassColor[1], glassColor[2], glassColor[3])
         val ws2 = md.addVertex(0.60f, 1.02f, 0.38f, 0f, 0.55f, 0.83f, glassColor[0], glassColor[1], glassColor[2], glassColor[3])
         val ws3 = md.addVertex(-0.60f, 1.02f, 0.38f, 0f, 0.55f, 0.83f, glassColor[0], glassColor[1], glassColor[2], glassColor[3])
         md.addQuad(ws0, ws1, ws2, ws3)
+        // Windshield ceramic dark border strip at cowl
+        md.addBox(-0.71f, 0.61f, 1.06f, 0.71f, 0.64f, 1.10f, glossBlack)
 
         // Sloping Polycarbonate Rear Engine Deck Window
         val rw0 = md.addVertex(0.60f, 1.03f, -0.65f, 0f, 0.58f, -0.81f, glassColor[0], glassColor[1], glassColor[2], glassColor[3])
@@ -163,9 +186,9 @@ object CarMeshBuilder {
         // Side Glass & A/B Pillars
         md.addBox(-0.70f, 0.64f, -0.65f, -0.60f, 1.01f, 0.38f, glassColor)
         md.addBox(0.60f, 0.64f, -0.65f, 0.70f, 1.01f, 0.38f, glassColor)
-        // Carbon aerodynamic wing mirrors
-        md.addBox(-0.84f, 0.72f, 0.40f, -0.70f, 0.78f, 0.52f, carbonColor)
-        md.addBox(0.70f, 0.72f, 0.40f, 0.84f, 0.78f, 0.52f, carbonColor)
+        // Carbon aerodynamic wing mirrors with reflective glass face
+        md.addWingMirror(-0.85f, 0.72f, 0.40f, isLeft = true, shellColor = carbonColor, glassColor = mirrorGlass)
+        md.addWingMirror(0.85f, 0.72f, 0.40f, isLeft = false, shellColor = carbonColor, glassColor = mirrorGlass)
 
         // H. Cockpit Interior (Dashboard, Steering Wheel, Seat, Roll Cage)
         md.addBox(-0.55f, 0.58f, 0.50f, 0.55f, 0.73f, 0.88f, interiorDark) // Dash
@@ -182,52 +205,52 @@ object CarMeshBuilder {
         // Engine intake runners (visible under rear window glass)
         for (i in 0 until 4) {
             val rz = -0.80f - i * 0.12f
-            md.addBox(-0.20f, 0.65f, rz, -0.08f, 0.70f, rz + 0.06f, metalTrim)
-            md.addBox(0.08f, 0.65f, rz, 0.20f, 0.70f, rz + 0.06f, metalTrim)
+            md.addBox(-0.20f, 0.65f, rz, -0.08f, 0.71f, rz + 0.06f, metalTrim)
+            md.addBox(0.08f, 0.65f, rz, 0.20f, 0.71f, rz + 0.06f, metalTrim)
         }
 
         // J. High-Downforce Swan-Neck GT Rear Wing with Camber & Slotted Endplates
         // Curved swan-neck wing pylons
-        md.addBox(-0.48f, 0.68f, -1.78f, -0.42f, 1.15f, -1.68f, carbonColor)
-        md.addBox(0.42f, 0.68f, -1.78f, 0.48f, 1.15f, -1.68f, carbonColor)
+        md.addBox(-0.48f, 0.68f, -1.78f, -0.42f, 1.16f, -1.68f, carbonColor)
+        md.addBox(0.42f, 0.68f, -1.78f, 0.48f, 1.16f, -1.68f, carbonColor)
         // Aerodynamic 3D curved wing blade
         md.addAirfoilWing(
             spanMinX = -0.98f, spanMaxX = 0.98f,
             chordZBack = -1.88f, chordZFront = -1.50f,
-            elevY = 1.15f, camber = 0.04f,
+            elevY = 1.16f, camber = 0.04f,
             color = carbonColor
         )
         // Wing endplates with vertical aerodynamic vortex fences
-        md.addBox(-1.00f, 1.02f, -1.92f, -0.97f, 1.28f, -1.48f, carbonColor)
-        md.addBox(0.97f, 1.02f, -1.92f, 1.00f, 1.28f, -1.48f, carbonColor)
+        md.addBox(-1.00f, 1.02f, -1.92f, -0.97f, 1.29f, -1.48f, carbonColor)
+        md.addBox(0.97f, 1.02f, -1.92f, 1.00f, 1.29f, -1.48f, carbonColor)
 
         // K. Aggressive Venturi Rear Diffuser with Multiple Strakes
         md.addTrapezoid(
-            bottomMinX = -0.88f, bottomMaxX = 0.88f, bottomY = 0.10f, bottomMinZ = -2.22f, bottomMaxZ = -1.85f,
-            topMinX = -0.85f, topMaxX = 0.85f, topY = 0.28f, topMinZ = -2.15f, topMaxZ = -1.90f,
+            bottomMinX = -0.88f, bottomMaxX = 0.88f, bottomY = 0.09f, bottomMinZ = -2.24f, bottomMaxZ = -1.85f,
+            topMinX = -0.85f, topMaxX = 0.85f, topY = 0.28f, topMinZ = -2.16f, topMaxZ = -1.90f,
             color = carbonColor
         )
         // 5 vertical diffuser fins
         for (f in -2..2) {
             val fx = f * 0.35f
-            md.addBox(fx - 0.015f, 0.08f, -2.25f, fx + 0.015f, 0.26f, -1.88f, carbonColor)
+            md.addBox(fx - 0.015f, 0.07f, -2.26f, fx + 0.015f, 0.27f, -1.88f, carbonColor)
         }
 
         // L. Automotive Headlights & LED Taillights
         // Projector Headlights
-        md.addProjectorHeadlights(-0.82f, -0.54f, 0.40f, 0.50f, 2.12f, lightColor, carbonColor, isLeft = true)
-        md.addProjectorHeadlights(0.54f, 0.82f, 0.40f, 0.50f, 2.12f, lightColor, carbonColor, isLeft = false)
+        md.addProjectorHeadlights(-0.82f, -0.54f, 0.40f, 0.50f, 2.14f, lightColor, carbonColor, isLeft = true)
+        md.addProjectorHeadlights(0.54f, 0.82f, 0.40f, 0.50f, 2.14f, lightColor, carbonColor, isLeft = false)
         // Continuous Full-Width LED Taillight Bar with Dynamic Brake Illumination
-        md.addBox(-0.84f, 0.54f, -2.02f, 0.84f, 0.60f, -1.96f, taillightColor)
+        md.addBox(-0.84f, 0.54f, -2.03f, 0.84f, 0.60f, -1.96f, taillightColor)
 
         // M. Dual High-Exit Titanium Exhaust Tips with Heat Shield
-        md.addBox(-0.25f, 0.42f, -2.03f, 0.25f, 0.52f, -1.98f, carbonColor) // Heat shield
-        md.addExhaustPipe(-0.16f, 0.47f, -2.05f, 0.05f, metalTrim)
-        md.addExhaustPipe(0.16f, 0.47f, -2.05f, 0.05f, metalTrim)
+        md.addBox(-0.25f, 0.42f, -2.04f, 0.25f, 0.52f, -1.98f, carbonColor) // Heat shield
+        md.addExhaustPipe(-0.16f, 0.47f, -2.06f, 0.052f, metalTrim)
+        md.addExhaustPipe(0.16f, 0.47f, -2.06f, 0.052f, metalTrim)
 
         val bodyMesh = md.toMesh()
         val wheelMesh = createDetailedWheelMesh(
-            radius = 0.35f, width = 0.28f, rimRadius = 0.24f, spokeCount = 6, carType = "valkyrie"
+            radius = 0.35f, width = 0.28f, rimRadius = 0.24f, spokeCount = 5, carType = "valkyrie"
         )
         val shadowMesh = createContactShadowMesh(length = 4.45f, width = 2.05f)
         val wheelPositions = arrayOf(
@@ -246,47 +269,50 @@ object CarMeshBuilder {
         val md = MeshData()
 
         val bodyColor = floatArrayOf(0.96f, 0.96f, 0.97f, 1.0f) // Takes player paint multiplier
-        val trimBlack = floatArrayOf(0.14f, 0.14f, 0.15f, 1.0f)
+        val trimBlack = floatArrayOf(0.13f, 0.13f, 0.14f, 1.0f)
         val carbonColor = floatArrayOf(0.11f, 0.11f, 0.12f, 1.0f)
         val glassColor = floatArrayOf(0.16f, 0.20f, 0.28f, 0.85f)
         val lightColor = floatArrayOf(0.95f, 0.98f, 1.0f, 1.0f)
         val taillightColor = floatArrayOf(0.95f, 0.10f, 0.10f, 1.0f)
-        val intercoolerAlloy = floatArrayOf(0.80f, 0.83f, 0.88f, 1.0f)
+        val intercoolerAlloy = floatArrayOf(0.82f, 0.84f, 0.89f, 1.0f)
         val metalChrome = floatArrayOf(0.88f, 0.88f, 0.92f, 1.0f)
         val towHookRed = floatArrayOf(0.95f, 0.15f, 0.15f, 1.0f)
+        val mirrorGlass = floatArrayOf(0.82f, 0.88f, 0.95f, 0.95f)
 
         // A. Tuner Front Bumper, Lip Splitter & Exposed Front-Mount Intercooler
         md.addTrapezoid(
-            bottomMinX = -0.88f, bottomMaxX = 0.88f, bottomY = 0.10f, bottomMinZ = 1.88f, bottomMaxZ = 2.18f,
-            topMinX = -0.84f, topMaxX = 0.84f, topY = 0.15f, topMinZ = 1.90f, topMaxZ = 2.14f,
+            bottomMinX = -0.88f, bottomMaxX = 0.88f, bottomY = 0.09f, bottomMinZ = 1.88f, bottomMaxZ = 2.20f,
+            topMinX = -0.84f, topMaxX = 0.84f, topY = 0.15f, topMinZ = 1.90f, topMaxZ = 2.15f,
             color = trimBlack
         )
         // Main bumper fascia
-        md.addBox(-0.84f, 0.15f, 1.82f, 0.84f, 0.44f, 2.12f, bodyColor)
+        md.addBox(-0.84f, 0.15f, 1.82f, 0.84f, 0.44f, 2.13f, bodyColor)
         // Large trapezoidal front intake opening exposing polished FMIC (Front Mount Intercooler)
-        md.addBox(-0.52f, 0.16f, 2.06f, 0.52f, 0.36f, 2.14f, trimBlack) // Recessed intake cavity
-        md.addBox(-0.46f, 0.18f, 2.08f, 0.46f, 0.34f, 2.11f, intercoolerAlloy) // Aluminum core
+        md.addBox(-0.52f, 0.16f, 2.06f, 0.52f, 0.36f, 2.15f, trimBlack) // Recessed intake cavity
+        md.addBox(-0.46f, 0.18f, 2.09f, 0.46f, 0.34f, 2.12f, intercoolerAlloy) // Aluminum core
         // Intercooler tube fins
         for (g in 0 until 5) {
             val fy = 0.19f + g * 0.032f
-            md.addBox(-0.45f, fy, 2.11f, 0.45f, fy + 0.012f, 2.12f, floatArrayOf(0.65f, 0.68f, 0.72f, 1.0f))
+            md.addBox(-0.45f, fy, 2.12f, 0.45f, fy + 0.012f, 2.13f, floatArrayOf(0.65f, 0.68f, 0.72f, 1.0f))
         }
         // Front JDM tow hook
-        md.addBox(0.48f, 0.17f, 2.12f, 0.55f, 0.22f, 2.19f, towHookRed)
+        md.addBox(0.48f, 0.17f, 2.13f, 0.55f, 0.22f, 2.20f, towHookRed)
 
         // B. Long Sculpted Hood with Power Bulge & Extractor Vents
         md.addCurvedSurface(
-            xLeft = -0.81f, xRight = 0.81f,
-            zFront = 2.05f, zBack = 0.98f,
+            xLeft = -0.82f, xRight = 0.82f,
+            zFront = 2.06f, zBack = 0.98f,
             yFront = 0.44f, yBack = 0.68f,
             yCrown = 0.05f,
             color = bodyColor
         )
         // Center power bulge
-        md.addBox(-0.25f, 0.56f, 1.25f, 0.25f, 0.64f, 1.90f, bodyColor)
+        md.addBox(-0.25f, 0.56f, 1.25f, 0.25f, 0.65f, 1.90f, bodyColor)
         // Dual hood heat extraction vents
-        md.addBox(-0.62f, 0.58f, 1.35f, -0.38f, 0.62f, 1.65f, carbonColor)
-        md.addBox(0.38f, 0.58f, 1.35f, 0.62f, 0.62f, 1.65f, carbonColor)
+        md.addBox(-0.62f, 0.58f, 1.35f, -0.38f, 0.63f, 1.65f, carbonColor)
+        md.addBox(0.38f, 0.58f, 1.35f, 0.62f, 0.63f, 1.65f, carbonColor)
+        // Cowl wiper recess
+        md.addBox(-0.70f, 0.66f, 0.96f, 0.70f, 0.69f, 1.02f, trimBlack)
 
         // C. Bolt-on Widebody Front Fender Flares (Wheel position FL/FR: z=1.25, y=0.34)
         md.addCurvedWheelArch(
@@ -303,11 +329,11 @@ object CarMeshBuilder {
         // D. Side Body, Aerodynamic Rocker Skirts with Winglet
         md.addBox(-0.84f, 0.26f, -0.85f, 0.84f, 0.66f, 0.85f, bodyColor)
         // Widebody aero side skirts
-        md.addBox(-0.89f, 0.12f, -1.85f, -0.79f, 0.22f, 1.80f, trimBlack)
-        md.addBox(0.79f, 0.12f, -1.85f, 0.89f, 0.22f, 1.80f, trimBlack)
+        md.addBox(-0.90f, 0.11f, -1.85f, -0.79f, 0.21f, 1.80f, trimBlack)
+        md.addBox(0.79f, 0.11f, -1.85f, 0.90f, 0.21f, 1.80f, trimBlack)
         // Rear skirt winglet
-        md.addBox(-0.90f, 0.20f, -0.85f, -0.82f, 0.36f, -0.72f, carbonColor)
-        md.addBox(0.82f, 0.20f, -0.85f, 0.90f, 0.36f, -0.72f, carbonColor)
+        md.addBox(-0.91f, 0.19f, -0.85f, -0.82f, 0.36f, -0.72f, carbonColor)
+        md.addBox(0.82f, 0.19f, -0.85f, 0.91f, 0.36f, -0.72f, carbonColor)
 
         // E. Flared Rear Widebody Quarter Fenders (Wheel position RL/RR: z=-1.25, y=0.34)
         md.addCurvedWheelArch(
@@ -323,7 +349,7 @@ object CarMeshBuilder {
 
         // F. Fastback Coupe Greenhouse with Double-Bubble Roof & Tapered Pillars
         md.addCurvedSurface(
-            xLeft = -0.62f, xRight = 0.62f,
+            xLeft = -0.63f, xRight = 0.63f,
             zFront = 0.32f, zBack = -0.58f,
             yFront = 1.06f, yBack = 1.08f,
             yCrown = 0.04f,
@@ -349,9 +375,9 @@ object CarMeshBuilder {
         // Side Windows & Quarter Glass
         md.addBox(-0.67f, 0.70f, -0.58f, -0.60f, 1.04f, 0.32f, glassColor)
         md.addBox(0.60f, 0.70f, -0.58f, 0.67f, 1.04f, 0.32f, glassColor)
-        // Aerodynamic bullet mirrors
-        md.addBox(-0.80f, 0.76f, 0.38f, -0.68f, 0.82f, 0.48f, trimBlack)
-        md.addBox(0.68f, 0.76f, 0.38f, 0.80f, 0.82f, 0.48f, trimBlack)
+        // Aerodynamic bullet mirrors with reflective glass
+        md.addWingMirror(-0.81f, 0.76f, 0.38f, isLeft = true, shellColor = trimBlack, glassColor = mirrorGlass)
+        md.addWingMirror(0.81f, 0.76f, 0.38f, isLeft = false, shellColor = trimBlack, glassColor = mirrorGlass)
 
         // G. Drift Cockpit (Deep Dish Wheel, Tall Hydraulic E-Brake, Bucket Seats)
         md.addBox(-0.54f, 0.62f, 0.42f, 0.54f, 0.74f, 0.78f, trimBlack) // Dashboard
@@ -361,20 +387,20 @@ object CarMeshBuilder {
         md.addBox(-0.35f, 0.34f, -0.28f, 0.05f, 0.86f, 0.12f, trimBlack) // Driver bucket seat
         md.addBox(0.12f, 0.34f, -0.28f, 0.48f, 0.86f, 0.12f, trimBlack) // Passenger bucket seat
 
-        // H. Integrated Molded Ducktail Trunk Spoiler
+        // H. Integrated Molded Ducktail Trunk Spoiler with Carbon Wickerbill
         md.addBox(-0.78f, 0.70f, -1.96f, 0.78f, 0.79f, -1.70f, bodyColor)
         md.addTrapezoid(
-            bottomMinX = -0.76f, bottomMaxX = 0.76f, bottomY = 0.78f, bottomMinZ = -1.98f, bottomMaxZ = -1.82f,
-            topMinX = -0.74f, topMaxX = 0.74f, topY = 0.88f, topMinZ = -2.02f, topMaxZ = -1.88f,
+            bottomMinX = -0.76f, bottomMaxX = 0.76f, bottomY = 0.78f, bottomMinZ = -1.99f, bottomMaxZ = -1.82f,
+            topMinX = -0.74f, topMaxX = 0.74f, topY = 0.89f, topMinZ = -2.03f, topMaxZ = -1.88f,
             color = carbonColor
         )
 
         // I. Headlights & Quad L-Ribbon Taillights
-        md.addProjectorHeadlights(-0.80f, -0.52f, 0.44f, 0.54f, 2.04f, lightColor, trimBlack, isLeft = true)
-        md.addProjectorHeadlights(0.52f, 0.80f, 0.44f, 0.54f, 2.04f, lightColor, trimBlack, isLeft = false)
+        md.addProjectorHeadlights(-0.80f, -0.52f, 0.44f, 0.54f, 2.05f, lightColor, trimBlack, isLeft = true)
+        md.addProjectorHeadlights(0.52f, 0.80f, 0.44f, 0.54f, 2.05f, lightColor, trimBlack, isLeft = false)
         // Taillights
-        md.addBox(-0.80f, 0.54f, -1.98f, -0.42f, 0.64f, -1.90f, taillightColor)
-        md.addBox(0.42f, 0.54f, -1.98f, 0.80f, 0.64f, -1.90f, taillightColor)
+        md.addBox(-0.80f, 0.54f, -1.99f, -0.42f, 0.64f, -1.90f, taillightColor)
+        md.addBox(0.42f, 0.54f, -1.99f, 0.80f, 0.64f, -1.90f, taillightColor)
 
         // J. Angled Japanese Cannon Exhaust with Burnt Titanium Gradient
         val burntTitanium = floatArrayOf(0.40f, 0.65f, 0.95f, 1.0f)
@@ -408,17 +434,17 @@ object CarMeshBuilder {
         val lightColor = floatArrayOf(0.95f, 0.98f, 1.0f, 1.0f)
         val taillightColor = floatArrayOf(0.95f, 0.10f, 0.10f, 1.0f)
         val goldExhaust = floatArrayOf(0.95f, 0.78f, 0.28f, 1.0f) // Screaming V10 Inconel
-        val metalTrim = floatArrayOf(0.82f, 0.84f, 0.88f, 1.0f)
+        val mirrorGlass = floatArrayOf(0.82f, 0.88f, 0.95f, 0.95f)
 
         // A. Extended Prototype Carbon Splitter & Front Keel Wings
         md.addTrapezoid(
-            bottomMinX = -1.04f, bottomMaxX = 1.04f, bottomY = 0.06f, bottomMinZ = 1.95f, bottomMaxZ = 2.40f,
-            topMinX = -0.98f, topMaxX = 0.98f, topY = 0.11f, topMinZ = 2.00f, topMaxZ = 2.32f,
+            bottomMinX = -1.04f, bottomMaxX = 1.04f, bottomY = 0.06f, bottomMinZ = 1.95f, bottomMaxZ = 2.42f,
+            topMinX = -0.98f, topMaxX = 0.98f, topY = 0.11f, topMinZ = 2.00f, topMaxZ = 2.34f,
             color = carbonColor
         )
         // High vertical front splitter fences
-        md.addBox(-1.05f, 0.06f, 2.10f, -1.02f, 0.28f, 2.38f, carbonColor)
-        md.addBox(1.02f, 0.06f, 2.10f, 1.05f, 0.28f, 2.38f, carbonColor)
+        md.addBox(-1.05f, 0.06f, 2.10f, -1.02f, 0.29f, 2.40f, carbonColor)
+        md.addBox(1.02f, 0.06f, 2.10f, 1.05f, 0.29f, 2.40f, carbonColor)
 
         // B. Separated Front Wheel Aerodynamic Pontoons with Pressure-Relief Louvers
         // Wheel position FL/FR: z=1.45, y=0.36
@@ -433,24 +459,24 @@ object CarMeshBuilder {
             fenderColor = bodyColor, linerColor = glossBlack, isLeft = false
         )
         // Top wheel arch pressure louvers (prevents aerodynamic front lift)
-        for (i in 0 until 4) {
-            val lz = 1.35f + i * 0.07f
+        for (i in 0 until 5) {
+            val lz = 1.34f + i * 0.065f
             md.addBox(-0.96f, 0.58f, lz, -0.74f, 0.60f, lz + 0.035f, carbonColor)
             md.addBox(0.74f, 0.58f, lz, 0.96f, 0.60f, lz + 0.035f, carbonColor)
         }
 
         // C. Center Aerodynamic Drop Nose & Air Extraction Channel
         md.addTrapezoid(
-            bottomMinX = -0.38f, bottomMaxX = 0.38f, bottomY = 0.18f, bottomMinZ = 1.15f, bottomMaxZ = 2.30f,
-            topMinX = -0.32f, topMaxX = 0.32f, topY = 0.44f, topMinZ = 1.10f, topMaxZ = 2.22f,
+            bottomMinX = -0.38f, bottomMaxX = 0.38f, bottomY = 0.17f, bottomMinZ = 1.15f, bottomMaxZ = 2.32f,
+            topMinX = -0.32f, topMaxX = 0.32f, topY = 0.44f, topMinZ = 1.10f, topMaxZ = 2.24f,
             color = bodyColor
         )
         // Center air keel divider
-        md.addBox(-0.02f, 0.10f, 1.70f, 0.02f, 0.32f, 2.25f, carbonColor)
+        md.addBox(-0.02f, 0.09f, 1.70f, 0.02f, 0.33f, 2.28f, carbonColor)
 
         // D. Narrow Teardrop Fighter-Jet Cockpit Canopy
         md.addCurvedSurface(
-            xLeft = -0.46f, xRight = 0.46f,
+            xLeft = -0.47f, xRight = 0.47f,
             zFront = 0.30f, zBack = -0.58f,
             yFront = 0.90f, yBack = 0.94f,
             yCrown = 0.04f,
@@ -459,10 +485,10 @@ object CarMeshBuilder {
         // Roof ram-air intake snorkel for high-revving V10 engine
         md.addTrapezoid(
             bottomMinX = -0.15f, bottomMaxX = 0.15f, bottomY = 0.92f, bottomMinZ = -0.45f, bottomMaxZ = 0.25f,
-            topMinX = -0.11f, topMaxX = 0.11f, topY = 1.08f, topMinZ = -0.52f, topMaxZ = 0.20f,
+            topMinX = -0.11f, topMaxX = 0.11f, topY = 1.09f, topMinZ = -0.52f, topMaxZ = 0.20f,
             color = carbonColor
         )
-        md.addBox(-0.10f, 0.94f, 0.20f, 0.10f, 1.06f, 0.23f, glossBlack) // Snorkel intake mouth
+        md.addBox(-0.10f, 0.94f, 0.20f, 0.10f, 1.07f, 0.24f, glossBlack) // Snorkel intake mouth
 
         // Panoramic Wrap-Around Cockpit Windshield
         val w0 = md.addVertex(-0.52f, 0.48f, 0.88f, 0f, 0.55f, 0.83f, glassColor[0], glassColor[1], glassColor[2], glassColor[3])
@@ -474,16 +500,19 @@ object CarMeshBuilder {
         // Side Bubble Glass
         md.addBox(-0.50f, 0.50f, -0.55f, -0.42f, 0.90f, 0.30f, glassColor)
         md.addBox(0.42f, 0.50f, -0.55f, 0.50f, 0.90f, 0.30f, glassColor)
+        // Stalk-mounted aero mirrors
+        md.addWingMirror(-0.68f, 0.70f, 0.35f, isLeft = true, shellColor = carbonColor, glassColor = mirrorGlass)
+        md.addWingMirror(0.68f, 0.70f, 0.35f, isLeft = false, shellColor = carbonColor, glassColor = mirrorGlass)
 
         // E. Full-Length LMP Carbon Shark Fin Stabilizer (extends from roof intake to wing)
-        md.addBox(-0.02f, 0.62f, -1.95f, 0.02f, 1.18f, -0.45f, carbonColor)
+        md.addBox(-0.02f, 0.62f, -1.96f, 0.02f, 1.19f, -0.45f, carbonColor)
 
         // F. Deep Venturi Side Pods & Hollowed Flow-Through Doors
         md.addBox(-0.94f, 0.18f, -1.05f, -0.56f, 0.54f, 0.65f, bodyColor)
         md.addBox(0.56f, 0.18f, -1.05f, 0.94f, 0.54f, 0.65f, bodyColor)
         // Exposed carbon monocoque side floor skirts
-        md.addBox(-1.02f, 0.08f, -2.15f, -0.92f, 0.14f, 1.95f, carbonColor)
-        md.addBox(0.92f, 0.08f, -2.15f, 1.02f, 0.14f, 1.95f, carbonColor)
+        md.addBox(-1.03f, 0.07f, -2.15f, -0.92f, 0.14f, 1.95f, carbonColor)
+        md.addBox(0.92f, 0.07f, -2.15f, 1.03f, 0.14f, 1.95f, carbonColor)
 
         // G. Rear Wheel Aero Fairings (Wheel position RL/RR: z=-1.40, y=0.36)
         md.addCurvedWheelArch(
@@ -499,37 +528,37 @@ object CarMeshBuilder {
 
         // H. Extreme Le Mans Carbon Dual-Element Rear Wing with Swan-Neck Pylons
         // Swan-neck struts
-        md.addBox(-0.35f, 0.65f, -2.08f, -0.28f, 1.28f, -1.98f, carbonColor)
-        md.addBox(0.28f, 0.65f, -2.08f, 0.35f, 1.28f, -1.98f, carbonColor)
+        md.addBox(-0.35f, 0.65f, -2.08f, -0.28f, 1.29f, -1.98f, carbonColor)
+        md.addBox(0.28f, 0.65f, -2.08f, 0.35f, 1.29f, -1.98f, carbonColor)
         // Primary mainplane wing
         md.addAirfoilWing(
             spanMinX = -1.10f, spanMaxX = 1.10f,
             chordZBack = -2.25f, chordZFront = -1.82f,
-            elevY = 1.25f, camber = 0.05f,
+            elevY = 1.26f, camber = 0.05f,
             color = carbonColor
         )
         // Secondary high-angle flap
         md.addAirfoilWing(
             spanMinX = -1.06f, spanMaxX = 1.06f,
-            chordZBack = -2.32f, chordZFront = -2.05f,
-            elevY = 1.32f, camber = 0.03f,
+            chordZBack = -2.33f, chordZFront = -2.05f,
+            elevY = 1.33f, camber = 0.03f,
             color = carbonColor
         )
         // Vertical endplates with night-racing LED edge light strips
-        md.addBox(-1.12f, 1.04f, -2.32f, -1.08f, 1.42f, -1.78f, carbonColor)
-        md.addBox(1.08f, 1.04f, -2.32f, 1.12f, 1.42f, -1.78f, carbonColor)
-        md.addBox(-1.11f, 1.08f, -2.30f, -1.09f, 1.38f, -2.27f, taillightColor) // Left LED strip
-        md.addBox(1.09f, 1.08f, -2.30f, 1.11f, 1.38f, -2.27f, taillightColor)  // Right LED strip
+        md.addBox(-1.12f, 1.04f, -2.33f, -1.08f, 1.43f, -1.78f, carbonColor)
+        md.addBox(1.08f, 1.04f, -2.33f, 1.12f, 1.43f, -1.78f, carbonColor)
+        md.addBox(-1.11f, 1.08f, -2.31f, -1.09f, 1.39f, -2.28f, taillightColor) // Left LED strip
+        md.addBox(1.09f, 1.08f, -2.31f, 1.11f, 1.39f, -2.28f, taillightColor)  // Right LED strip
 
         // I. Massive Underfloor Venturi Tunnels with 6 Vertical Strakes
         md.addTrapezoid(
-            bottomMinX = -0.92f, bottomMaxX = 0.92f, bottomY = 0.07f, bottomMinZ = -2.38f, bottomMaxZ = -1.90f,
-            topMinX = -0.88f, topMaxX = 0.88f, topY = 0.32f, topMinZ = -2.28f, topMaxZ = -1.95f,
+            bottomMinX = -0.92f, bottomMaxX = 0.92f, bottomY = 0.06f, bottomMinZ = -2.40f, bottomMaxZ = -1.90f,
+            topMinX = -0.88f, topMaxX = 0.88f, topY = 0.32f, topMinZ = -2.30f, topMaxZ = -1.95f,
             color = carbonColor
         )
         for (st in -3..2) {
             val sx = st * 0.28f + 0.14f
-            md.addBox(sx - 0.015f, 0.06f, -2.40f, sx + 0.015f, 0.30f, -1.92f, carbonColor)
+            md.addBox(sx - 0.015f, 0.05f, -2.42f, sx + 0.015f, 0.31f, -1.92f, carbonColor)
         }
 
         // J. Top-Exit Upward-Firing Screaming V10 Inconel Exhausts with Gold Heat Shield
@@ -576,21 +605,23 @@ object CarMeshBuilder {
         carType: String
     ): Mesh {
         val md = MeshData()
-        val segments = 20
+        val segments = 24 // Increased to 24 for silky smooth roundness on high-res displays
 
-        val tireColor = floatArrayOf(0.14f, 0.14f, 0.15f, 1.0f)
-        val rimLipColor = floatArrayOf(0.92f, 0.92f, 0.96f, 1.0f)
+        val tireColor = floatArrayOf(0.12f, 0.12f, 0.13f, 1.0f) // Deep vulcanized matte rubber
+        val tireGroove = floatArrayOf(0.07f, 0.07f, 0.08f, 1.0f) // Directional tread groove
+        val rimLipColor = floatArrayOf(0.92f, 0.92f, 0.96f, 1.0f) // Polished alloy lip
         val rimSpokeColor = when (carType) {
-            "spirit" -> floatArrayOf(0.82f, 0.72f, 0.45f, 1.0f) // Bronze JDM alloy
-            "monza" -> floatArrayOf(0.18f, 0.18f, 0.20f, 1.0f)  // Matte carbon race wheel
-            else -> floatArrayOf(0.88f, 0.88f, 0.92f, 1.0f)     // Forged silver GT wheel
+            "spirit" -> floatArrayOf(0.84f, 0.70f, 0.42f, 1.0f) // Authentic forged bronze JDM alloy
+            "monza" -> floatArrayOf(0.16f, 0.16f, 0.18f, 1.0f)  // Matte carbon race wheel
+            else -> floatArrayOf(0.88f, 0.89f, 0.93f, 1.0f)     // Forged silver GT wheel
         }
-        val rotorColor = floatArrayOf(0.72f, 0.74f, 0.78f, 1.0f) // Steel / carbon-ceramic rotor
-        val rotorHatColor = floatArrayOf(0.20f, 0.20f, 0.22f, 1.0f) // Center rotor mounting hat
+        val rotorColor = floatArrayOf(0.74f, 0.75f, 0.78f, 1.0f) // Cast iron / carbon-ceramic friction surface
+        val rotorSlotColor = floatArrayOf(0.48f, 0.49f, 0.52f, 1.0f) // Cross-drilled holes / slots
+        val rotorHatColor = floatArrayOf(0.18f, 0.18f, 0.20f, 1.0f) // Dark anodized center mounting hat
         val caliperColor = when (carType) {
-            "spirit" -> floatArrayOf(0.95f, 0.78f, 0.12f, 1.0f) // Yellow Brembo
-            "monza" -> floatArrayOf(0.20f, 0.90f, 0.35f, 1.0f)  // Acid Green racing caliper
-            else -> floatArrayOf(0.95f, 0.12f, 0.12f, 1.0f)     // Brembo Racing Red
+            "spirit" -> floatArrayOf(0.96f, 0.76f, 0.12f, 1.0f) // Sport Yellow caliper
+            "monza" -> floatArrayOf(0.20f, 0.92f, 0.35f, 1.0f)  // Acid Green racing caliper
+            else -> floatArrayOf(0.94f, 0.12f, 0.12f, 1.0f)     // Brembo Racing Red
         }
 
         val halfW = width * 0.5f
@@ -598,7 +629,7 @@ object CarMeshBuilder {
         val shoulderR = radius * 0.97f // Rounded tire shoulder radius
         val angleStep = (2.0 * PI / segments).toFloat()
 
-        // 1. Full Cylindrical Tread with Chamfered/Rounded Shoulders
+        // 1. Full Cylindrical Tread with Chamfered/Rounded Shoulders & Directional Grooves
         for (s in 0 until segments) {
             val a0 = s * angleStep
             val a1 = (s + 1) * angleStep
@@ -608,11 +639,14 @@ object CarMeshBuilder {
             val y0 = s0 * radius; val z0 = c0 * radius
             val y1 = s1 * radius; val z1 = c1 * radius
 
+            // Alternate tread color slightly for directional grooves pattern
+            val tColor = if (s % 4 == 0) tireGroove else tireColor
+
             // Center tread surface
-            val t0 = md.addVertex(-shoulderW, y0, z0, 0f, s0, c0, tireColor[0], tireColor[1], tireColor[2])
-            val t1 = md.addVertex(shoulderW, y0, z0, 0f, s0, c0, tireColor[0], tireColor[1], tireColor[2])
-            val t2 = md.addVertex(shoulderW, y1, z1, 0f, s1, c1, tireColor[0], tireColor[1], tireColor[2])
-            val t3 = md.addVertex(-shoulderW, y1, z1, 0f, s1, c1, tireColor[0], tireColor[1], tireColor[2])
+            val t0 = md.addVertex(-shoulderW, y0, z0, 0f, s0, c0, tColor[0], tColor[1], tColor[2])
+            val t1 = md.addVertex(shoulderW, y0, z0, 0f, s0, c0, tColor[0], tColor[1], tColor[2])
+            val t2 = md.addVertex(shoulderW, y1, z1, 0f, s1, c1, tColor[0], tColor[1], tColor[2])
+            val t3 = md.addVertex(-shoulderW, y1, z1, 0f, s1, c1, tColor[0], tColor[1], tColor[2])
             md.addQuad(t0, t1, t2, t3)
 
             // Outer shoulder bevel
@@ -647,13 +681,21 @@ object CarMeshBuilder {
             md.addQuad(isw0, isw1, isw2, isw3)
 
             // Outer Stepped Rim Barrel & Polished Lip
-            val rimLipX = halfW * 0.92f
+            val rimLipX = halfW * 0.93f
             val rimFaceX = halfW * 0.70f
             val rlip0 = md.addVertex(rimLipX, ry0, rz0, 0f, -s0, -c0, rimLipColor[0], rimLipColor[1], rimLipColor[2])
-            val rlip1 = md.addVertex(rimFaceX, ry0 * 0.95f, rz0 * 0.95f, 0f, -s0, -c0, rimLipColor[0], rimLipColor[1], rimLipColor[2])
-            val rlip2 = md.addVertex(rimFaceX, ry1 * 0.95f, rz1 * 0.95f, 0f, -s1, -c1, rimLipColor[0], rimLipColor[1], rimLipColor[2])
+            val rlip1 = md.addVertex(rimFaceX, ry0 * 0.96f, rz0 * 0.96f, 0f, -s0, -c0, rimLipColor[0], rimLipColor[1], rimLipColor[2])
+            val rlip2 = md.addVertex(rimFaceX, ry1 * 0.96f, rz1 * 0.96f, 0f, -s1, -c1, rimLipColor[0], rimLipColor[1], rimLipColor[2])
             val rlip3 = md.addVertex(rimLipX, ry1, rz1, 0f, -s1, -c1, rimLipColor[0], rimLipColor[1], rimLipColor[2])
             md.addQuad(rlip0, rlip1, rlip2, rlip3)
+
+            // Inner barrel cylinder (visual depth behind spokes)
+            val barrelInnerX = -halfW * 0.90f
+            val ib0 = md.addVertex(rimFaceX, ry0 * 0.95f, rz0 * 0.95f, 0f, -s0, -c0, rotorHatColor[0], rotorHatColor[1], rotorHatColor[2])
+            val ib1 = md.addVertex(barrelInnerX, ry0 * 0.95f, rz0 * 0.95f, 0f, -s0, -c0, rotorHatColor[0], rotorHatColor[1], rotorHatColor[2])
+            val ib2 = md.addVertex(barrelInnerX, ry1 * 0.95f, rz1 * 0.95f, 0f, -s1, -c1, rotorHatColor[0], rotorHatColor[1], rotorHatColor[2])
+            val ib3 = md.addVertex(rimFaceX, ry1 * 0.95f, rz1 * 0.95f, 0f, -s1, -c1, rotorHatColor[0], rotorHatColor[1], rotorHatColor[2])
+            md.addQuad(ib0, ib1, ib2, ib3)
         }
 
         // 2. Sculpted Alloy Wheel Spokes & Central Wheel Hub
@@ -674,9 +716,34 @@ object CarMeshBuilder {
             md.addTriangle(h0, h1, h2)
         }
 
+        // Centerlock nut detail (or 5-lug nuts for Spirit)
+        if (carType == "spirit") {
+            // 5 lug nuts around the center hub
+            for (lug in 0 until 5) {
+                val lugA = (lug * (2.0 * PI / 5.0)).toFloat()
+                val lx = hubX + 0.015f
+                val ly = sin(lugA) * (hubRadius * 0.60f)
+                val lz = cos(lugA) * (hubRadius * 0.60f)
+                md.addBox(lx, ly - 0.012f, lz - 0.012f, lx + 0.018f, ly + 0.012f, lz + 0.012f, rimLipColor)
+            }
+        } else {
+            // Centerlock hex nut
+            val nutColor = floatArrayOf(0.92f, 0.15f, 0.15f, 1.0f) // Red anodized centerlock
+            for (s in 0 until 6) {
+                val na0 = (s * (2.0 * PI / 6.0)).toFloat()
+                val na1 = ((s + 1) * (2.0 * PI / 6.0)).toFloat()
+                val ny0 = sin(na0) * (hubRadius * 0.40f); val nz0 = cos(na0) * (hubRadius * 0.40f)
+                val ny1 = sin(na1) * (hubRadius * 0.40f); val nz1 = cos(na1) * (hubRadius * 0.40f)
+                val n0 = md.addVertex(hubX + 0.02f, 0f, 0f, 1f, 0f, 0f, nutColor[0], nutColor[1], nutColor[2])
+                val n1 = md.addVertex(hubX + 0.02f, ny0, nz0, 1f, 0f, 0f, nutColor[0], nutColor[1], nutColor[2])
+                val n2 = md.addVertex(hubX + 0.02f, ny1, nz1, 1f, 0f, 0f, nutColor[0], nutColor[1], nutColor[2])
+                md.addTriangle(n0, n1, n2)
+            }
+        }
+
         // Distinct Spoke Patterns based on Vehicle Personality
         val spokeAngleStep = (2.0 * PI / spokeCount).toFloat()
-        val spokeWidthRad = 0.12f
+        val spokeWidthRad = 0.11f
 
         for (sp in 0 until spokeCount) {
             val centerA = sp * spokeAngleStep
@@ -698,7 +765,7 @@ object CarMeshBuilder {
 
             // Valkyrie: Twin-spoke secondary split strut
             if (carType == "valkyrie") {
-                val twinOffset = 0.08f
+                val twinOffset = 0.075f
                 val tRimY0 = sin(centerA + twinOffset) * (rimRadius * 0.88f)
                 val tRimZ0 = cos(centerA + twinOffset) * (rimRadius * 0.88f)
                 val tsp0 = md.addVertex(hubX, sHubY1, sHubZ1, 1f, 0f, 0f, rimLipColor[0], rimLipColor[1], rimLipColor[2])
@@ -715,10 +782,10 @@ object CarMeshBuilder {
             val carbonTurbofan = floatArrayOf(0.12f, 0.12f, 0.13f, 1.0f)
             for (s in 0 until segments) {
                 val a0 = s * angleStep; val a1 = (s + 1) * angleStep
-                val tf0 = md.addVertex(rimFaceX * 1.05f, sin(a0) * fanInnerR, cos(a0) * fanInnerR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
-                val tf1 = md.addVertex(rimFaceX * 1.05f, sin(a0) * fanOuterR, cos(a0) * fanOuterR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
-                val tf2 = md.addVertex(rimFaceX * 1.05f, sin(a1) * fanOuterR, cos(a1) * fanOuterR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
-                val tf3 = md.addVertex(rimFaceX * 1.05f, sin(a1) * fanInnerR, cos(a1) * fanInnerR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
+                val tf0 = md.addVertex(rimFaceX * 1.04f, sin(a0) * fanInnerR, cos(a0) * fanInnerR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
+                val tf1 = md.addVertex(rimFaceX * 1.04f, sin(a0) * fanOuterR, cos(a0) * fanOuterR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
+                val tf2 = md.addVertex(rimFaceX * 1.04f, sin(a1) * fanOuterR, cos(a1) * fanOuterR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
+                val tf3 = md.addVertex(rimFaceX * 1.04f, sin(a1) * fanInnerR, cos(a1) * fanInnerR, 1f, 0f, 0f, carbonTurbofan[0], carbonTurbofan[1], carbonTurbofan[2])
                 md.addQuad(tf0, tf1, tf2, tf3)
             }
         }
@@ -740,23 +807,28 @@ object CarMeshBuilder {
             val rh2 = md.addVertex(discX, hy1, hz1, 1f, 0f, 0f, rotorHatColor[0], rotorHatColor[1], rotorHatColor[2])
             md.addTriangle(rh0, rh1, rh2)
 
-            // Outer friction rotor ring
-            val rf0 = md.addVertex(discX, hy0, hz0, 1f, 0f, 0f, rotorColor[0], rotorColor[1], rotorColor[2])
-            val rf1 = md.addVertex(discX, dy0, dz0, 1f, 0f, 0f, rotorColor[0], rotorColor[1], rotorColor[2])
-            val rf2 = md.addVertex(discX, dy1, dz1, 1f, 0f, 0f, rotorColor[0], rotorColor[1], rotorColor[2])
-            val rf3 = md.addVertex(discX, hy1, hz1, 1f, 0f, 0f, rotorColor[0], rotorColor[1], rotorColor[2])
+            // Outer friction rotor ring (alternate color to simulate drilled ventilation slots)
+            val rColor = if (s % 3 == 0) rotorSlotColor else rotorColor
+            val rf0 = md.addVertex(discX, hy0, hz0, 1f, 0f, 0f, rColor[0], rColor[1], rColor[2])
+            val rf1 = md.addVertex(discX, dy0, dz0, 1f, 0f, 0f, rColor[0], rColor[1], rColor[2])
+            val rf2 = md.addVertex(discX, dy1, dz1, 1f, 0f, 0f, rColor[0], rColor[1], rColor[2])
+            val rf3 = md.addVertex(discX, hy1, hz1, 1f, 0f, 0f, rColor[0], rColor[1], rColor[2])
             md.addQuad(rf0, rf1, rf2, rf3)
         }
 
-        // 4. Large Multi-Piston Racing Brake Caliper
+        // 4. Large Multi-Piston Racing Brake Caliper with Bridge Bolts
         val calMinY = rotorRadius * 0.45f
         val calMaxY = rotorRadius * 1.05f
         val calMinZ = rotorRadius * 0.50f
         val calMaxZ = rotorRadius * 1.02f
         md.addBox(discX - 0.04f, calMinY, calMinZ, discX + 0.08f, calMaxY, calMaxZ, caliperColor)
-        // Caliper bridge mounting bolts
+        // Caliper bridge mounting bolts & pad pins
         md.addBox(discX + 0.08f, calMinY + 0.02f, calMinZ + 0.04f, discX + 0.095f, calMinY + 0.06f, calMinZ + 0.08f, rimLipColor)
         md.addBox(discX + 0.08f, calMaxY - 0.06f, calMaxZ - 0.08f, discX + 0.095f, calMaxY - 0.02f, calMaxZ - 0.04f, rimLipColor)
+        // Center brake pad retaining clip
+        val midCalY = (calMinY + calMaxY) * 0.5f
+        val midCalZ = (calMinZ + calMaxZ) * 0.5f
+        md.addBox(discX + 0.075f, midCalY - 0.03f, midCalZ - 0.04f, discX + 0.09f, midCalY + 0.03f, midCalZ + 0.04f, rotorHatColor)
 
         return md.toMesh()
     }
@@ -1088,6 +1160,34 @@ object CarMeshBuilder {
             if (isLeft) addQuad(p0, p1, p2, p3) else addQuad(p1, p0, p3, p2)
         }
 
+        fun addWingMirror(
+            stalkX: Float, stalkY: Float, stalkZ: Float,
+            isLeft: Boolean, shellColor: FloatArray, glassColor: FloatArray
+        ) {
+            val dirX = if (isLeft) -1f else 1f
+            // Stalk mounting from A-pillar/door
+            val stalkEnd = stalkX + dirX * 0.05f
+            addBox(
+                if (isLeft) stalkEnd else stalkX, stalkY - 0.02f, stalkZ - 0.02f,
+                if (isLeft) stalkX else stalkEnd, stalkY + 0.02f, stalkZ + 0.02f,
+                shellColor
+            )
+            // Aerodynamic mirror housing shell
+            val shellMinX = if (isLeft) stalkEnd - 0.11f else stalkEnd
+            val shellMaxX = if (isLeft) stalkEnd else stalkEnd + 0.11f
+            addBox(
+                shellMinX, stalkY - 0.04f, stalkZ - 0.06f,
+                shellMaxX, stalkY + 0.05f, stalkZ + 0.06f,
+                shellColor
+            )
+            // Reflective rear-facing mirror glass
+            addBox(
+                shellMinX + 0.01f, stalkY - 0.035f, stalkZ - 0.065f,
+                shellMaxX - 0.01f, stalkY + 0.045f, stalkZ - 0.060f,
+                glassColor
+            )
+        }
+
         fun addProjectorHeadlights(
             minX: Float, maxX: Float, minY: Float, maxY: Float, z: Float,
             lightColor: FloatArray, housingColor: FloatArray, isLeft: Boolean
@@ -1106,7 +1206,7 @@ object CarMeshBuilder {
             centerX: Float, centerY: Float, centerZ: Float,
             pipeRadius: Float, metalColor: FloatArray
         ) {
-            val segments = 10
+            val segments = 12
             val darkInterior = floatArrayOf(0.04f, 0.04f, 0.05f, 1.0f)
             val angleStep = (2.0 * PI / segments).toFloat()
 

@@ -7,9 +7,10 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Procedural Race Circuit Mesh & Environmental Scenery Generator for Apex GT.
- * Builds realistic 3D road surfaces with banking, FIA curbs, barriers, runoff zones,
- * and immersive environment scenery for Grand Prix, Alpine Pass, and Neon Metropolis.
+ * Procedural Race Circuit Mesh & Environmental World Generator for Apex GT — Phase 9.
+ * Synthesizes high-fidelity 3D track surfaces, FIA-standard kerbs, Armco barriers,
+ * tire walls, and rich immersive trackside environments for Grand Prix Circuit,
+ * Alpine Pass, and Neon Metropolis.
  */
 object TrackMeshBuilder {
 
@@ -53,38 +54,38 @@ object TrackMeshBuilder {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // 1. GRAND PRIX CIRCUIT (Apex GP Coastal Motorsport Circuit)
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 1. GRAND PRIX CIRCUIT (Professional Coastal Motorsport Venue)
+    // =============================================================================================
     fun buildGrandPrixCircuit(): TrackModel {
         val controlPoints = listOf(
             TrackSplinePoint(0f, 0f, -80f, 0f, 14f),
             TrackSplinePoint(0f, 0f, 0f, 0f, 14f),
             TrackSplinePoint(0f, 0f, 120f, 0f, 14f),
             TrackSplinePoint(0f, 0.5f, 220f, 0f, 14f),
-            // Turn 1 (Castrol Right Sweeper): High-speed entry with banked camber & outside runoff
-            TrackSplinePoint(15f, 1.0f, 300f, 4f, 14f, hasRightKerb = true, hasRunoffLeft = true),
-            TrackSplinePoint(45f, 1.5f, 360f, 6f, 14f, hasRightKerb = true, hasRunoffLeft = true),
+            // Turn 1 (Castrol Sweeper): High-speed entry with banked camber & outside runoff
+            TrackSplinePoint(15f, 1.0f, 300f, 5f, 14f, hasRightKerb = true, hasRunoffLeft = true),
+            TrackSplinePoint(45f, 1.8f, 360f, 7f, 14f, hasRightKerb = true, hasRunoffLeft = true),
             // Turns 2-3 (Esses Chicane): Technical alternating curbs
-            TrackSplinePoint(30f, 2.0f, 430f, -5f, 13.5f, hasLeftKerb = true, hasRunoffRight = true),
-            TrackSplinePoint(10f, 2.5f, 500f, -3f, 13.5f, hasLeftKerb = true),
+            TrackSplinePoint(30f, 2.2f, 430f, -6f, 13.5f, hasLeftKerb = true, hasRunoffRight = true),
+            TrackSplinePoint(10f, 2.8f, 500f, -4f, 13.5f, hasLeftKerb = true),
             // Turn 4 (Marina Carousel): Long sweeping banked curve overlooking the coastal bay
-            TrackSplinePoint(10f, 3.0f, 580f, 4f, 14f),
-            TrackSplinePoint(50f, 4.0f, 660f, 8f, 15f, hasRightKerb = true, hasRunoffLeft = true),
-            TrackSplinePoint(120f, 4.5f, 700f, 10f, 15f, hasRightKerb = true, hasRunoffLeft = true),
-            TrackSplinePoint(200f, 4.0f, 680f, 8f, 15f, hasRightKerb = true, hasRunoffLeft = true),
+            TrackSplinePoint(10f, 3.2f, 580f, 5f, 14f),
+            TrackSplinePoint(50f, 4.2f, 660f, 9f, 15f, hasRightKerb = true, hasRunoffLeft = true),
+            TrackSplinePoint(120f, 4.8f, 700f, 11f, 15f, hasRightKerb = true, hasRunoffLeft = true),
+            TrackSplinePoint(200f, 4.2f, 680f, 9f, 15f, hasRightKerb = true, hasRunoffLeft = true),
             // Back Straight: High-speed downhill descent
-            TrackSplinePoint(260f, 3.0f, 600f, 5f, 14f, hasRightKerb = true),
-            TrackSplinePoint(280f, 2.0f, 480f, 0f, 14f),
-            TrackSplinePoint(280f, 1.0f, 320f, 0f, 14f),
-            TrackSplinePoint(280f, 0.5f, 160f, 0f, 14f),
+            TrackSplinePoint(260f, 3.2f, 600f, 5f, 14f, hasRightKerb = true),
+            TrackSplinePoint(280f, 2.2f, 480f, 0f, 14f),
+            TrackSplinePoint(280f, 1.2f, 320f, 0f, 14f),
+            TrackSplinePoint(280f, 0.6f, 160f, 0f, 14f),
             TrackSplinePoint(280f, 0f, 20f, 0f, 14f),
             // Turn 5-6 (Stadium Infield & Harbor Hairpin)
-            TrackSplinePoint(270f, 0f, -70f, 3f, 13.5f, hasRightKerb = true),
-            TrackSplinePoint(240f, 0f, -140f, 6f, 13.5f, hasRightKerb = true, hasRunoffLeft = true),
-            TrackSplinePoint(180f, 0.2f, -190f, -8f, 14f, hasLeftKerb = true, hasRunoffRight = true),
-            TrackSplinePoint(120f, 0.5f, -200f, -10f, 14f, hasLeftKerb = true, hasRunoffRight = true),
-            TrackSplinePoint(60f, 0.3f, -170f, -6f, 14f, hasLeftKerb = true),
+            TrackSplinePoint(270f, 0f, -70f, 4f, 13.5f, hasRightKerb = true),
+            TrackSplinePoint(240f, 0.1f, -140f, 7f, 13.5f, hasRightKerb = true, hasRunoffLeft = true),
+            TrackSplinePoint(180f, 0.3f, -190f, -9f, 14f, hasLeftKerb = true, hasRunoffRight = true),
+            TrackSplinePoint(120f, 0.5f, -200f, -11f, 14f, hasLeftKerb = true, hasRunoffRight = true),
+            TrackSplinePoint(60f, 0.3f, -170f, -7f, 14f, hasLeftKerb = true),
             TrackSplinePoint(20f, 0.1f, -130f, -3f, 14f, hasLeftKerb = true),
             TrackSplinePoint(0f, 0f, -100f, 0f, 14f)
         )
@@ -97,38 +98,38 @@ object TrackMeshBuilder {
             waypoints[(waypoints.size * 0.66).toInt()]
         )
 
-        val road = generateRoadMesh(splinePoints, isWet = false)
+        val road = generateRoadMesh(splinePoints, trackType = TrackType.GRAND_PRIX)
         val kerbs = generateKerbMesh(splinePoints)
-        val barriers = generateBarrierMesh(splinePoints, hasTireBarriers = true)
+        val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.GRAND_PRIX)
         val env = generateGrandPrixSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
 
         return TrackModel(TrackId.GRAND_PRIX, road, kerbs, barriers, env, gantry, waypoints, sectors, TrackLightingConfig.GRAND_PRIX)
     }
 
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
     // 2. ALPINE MOUNTAIN PASS (High-Altitude Mountain Ascent & Switchbacks)
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
     fun buildAlpinePass(): TrackModel {
         val controlPoints = listOf(
             TrackSplinePoint(0f, 0f, -60f, 0f, 13f),
             TrackSplinePoint(0f, 0f, 20f, 0f, 13f),
             // Climbing Ascent Sector
-            TrackSplinePoint(30f, 6.0f, 120f, 4f, 12.5f, hasRightKerb = true),
-            TrackSplinePoint(80f, 14.0f, 180f, 6f, 12.5f, hasRightKerb = true),
+            TrackSplinePoint(30f, 6.5f, 120f, 4f, 12.5f, hasRightKerb = true),
+            TrackSplinePoint(80f, 14.5f, 180f, 6f, 12.5f, hasRightKerb = true),
             // Hairpin 1 (Lower Switchback Turnaround)
-            TrackSplinePoint(140f, 20.0f, 190f, 9f, 13.5f, hasRightKerb = true, hasRunoffLeft = true),
-            TrackSplinePoint(160f, 24.0f, 130f, -7f, 12.5f, hasLeftKerb = true),
+            TrackSplinePoint(140f, 21.0f, 190f, 10f, 13.5f, hasRightKerb = true, hasRunoffLeft = true),
+            TrackSplinePoint(160f, 25.0f, 130f, -8f, 12.5f, hasLeftKerb = true),
             // High Ridge Pass
-            TrackSplinePoint(140f, 29.0f, 40f, -5f, 12.5f, hasLeftKerb = true),
-            TrackSplinePoint(110f, 32.0f, -40f, 4f, 12.5f),
-            TrackSplinePoint(130f, 30.0f, -130f, 7f, 12.5f, hasRightKerb = true),
+            TrackSplinePoint(140f, 30.0f, 40f, -6f, 12.5f, hasLeftKerb = true),
+            TrackSplinePoint(110f, 33.5f, -40f, 4f, 12.5f),
+            TrackSplinePoint(130f, 31.0f, -130f, 8f, 12.5f, hasRightKerb = true),
             // Summit Hairpin 2 (Alpine Peak Turnaround)
-            TrackSplinePoint(90f, 25.0f, -200f, -11f, 13.5f, hasLeftKerb = true, hasRunoffRight = true),
-            TrackSplinePoint(30f, 18.0f, -210f, -8f, 12.5f, hasLeftKerb = true),
+            TrackSplinePoint(90f, 26.0f, -200f, -12f, 13.5f, hasLeftKerb = true, hasRunoffRight = true),
+            TrackSplinePoint(30f, 19.0f, -210f, -9f, 12.5f, hasLeftKerb = true),
             // Downhill Valley Descent
-            TrackSplinePoint(-30f, 12.0f, -160f, 6f, 12.5f, hasRightKerb = true),
-            TrackSplinePoint(-40f, 6.0f, -100f, 3f, 13f, hasRightKerb = true),
+            TrackSplinePoint(-30f, 12.5f, -160f, 6f, 12.5f, hasRightKerb = true),
+            TrackSplinePoint(-40f, 6.5f, -100f, 3f, 13f, hasRightKerb = true),
             TrackSplinePoint(-20f, 2.0f, -60f, 0f, 13f)
         )
 
@@ -140,18 +141,18 @@ object TrackMeshBuilder {
             waypoints[(waypoints.size * 0.70).toInt()]
         )
 
-        val road = generateRoadMesh(splinePoints, isWet = false, isMountain = true)
+        val road = generateRoadMesh(splinePoints, trackType = TrackType.ALPINE_PASS)
         val kerbs = generateKerbMesh(splinePoints)
-        val barriers = generateBarrierMesh(splinePoints, guardrailHeight = 1.25f, isAlpine = true)
+        val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.ALPINE_PASS)
         val env = generateAlpineSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
 
         return TrackModel(TrackId.ALPINE_PASS, road, kerbs, barriers, env, gantry, waypoints, sectors, TrackLightingConfig.ALPINE_PASS)
     }
 
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
     // 3. NIGHT NEON METROPOLIS (Night City Boulevard & Urban Street Circuit)
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
     fun buildNeonMetropolis(): TrackModel {
         val controlPoints = listOf(
             TrackSplinePoint(0f, 0f, -80f, 0f, 15f),
@@ -186,18 +187,22 @@ object TrackMeshBuilder {
             waypoints[(waypoints.size * 0.66).toInt()]
         )
 
-        val road = generateRoadMesh(splinePoints, isWet = true, isUrban = true)
+        val road = generateRoadMesh(splinePoints, trackType = TrackType.NEON_METROPOLIS)
         val kerbs = generateKerbMesh(splinePoints)
-        val barriers = generateBarrierMesh(splinePoints, isUrban = true)
+        val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.NEON_METROPOLIS)
         val env = generateMetropolisSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
 
         return TrackModel(TrackId.NEON_METROPOLIS, road, kerbs, barriers, env, gantry, waypoints, sectors, TrackLightingConfig.NEON_METROPOLIS)
     }
 
-    // ---------------------------------------------------------------------------------------------
+    private enum class TrackType {
+        GRAND_PRIX, ALPINE_PASS, NEON_METROPOLIS
+    }
+
+    // =============================================================================================
     // Spline Interpolation with Catmull-Rom
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
     private fun interpolateCatmullRom(pts: List<TrackSplinePoint>, segmentsPerPoint: Int): List<TrackSplinePoint> {
         val result = ArrayList<TrackSplinePoint>()
         val count = pts.size
@@ -233,9 +238,9 @@ object TrackMeshBuilder {
         return result
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Generic Mesh Buffer Helper
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // Generic Mesh Buffer Helper with Advanced Primitive Generators
+    // =============================================================================================
     private class MeshBuffer {
         val vertices = ArrayList<Float>()
         val indices = ArrayList<Short>()
@@ -248,45 +253,56 @@ object TrackMeshBuilder {
             return idx
         }
 
+        fun addTriangle(i0: Short, i1: Short, i2: Short) {
+            indices.add(i0); indices.add(i1); indices.add(i2)
+        }
+
         fun addQuad(i0: Short, i1: Short, i2: Short, i3: Short) {
             indices.add(i0); indices.add(i1); indices.add(i2)
             indices.add(i0); indices.add(i2); indices.add(i3)
         }
 
-        fun addBox(minX: Float, minY: Float, minZ: Float, maxX: Float, maxY: Float, maxZ: Float, r: Float, g: Float, b: Float) {
+        fun addBox(minX: Float, minY: Float, minZ: Float, maxX: Float, maxY: Float, maxZ: Float, r: Float, g: Float, b: Float, a: Float = 1f) {
             // Front (+Z)
-            var i0 = addVertex(minX, minY, maxZ, 0f, 0f, 1f, r, g, b)
-            var i1 = addVertex(maxX, minY, maxZ, 0f, 0f, 1f, r, g, b)
-            var i2 = addVertex(maxX, maxY, maxZ, 0f, 0f, 1f, r, g, b)
-            var i3 = addVertex(minX, maxY, maxZ, 0f, 0f, 1f, r, g, b)
+            var i0 = addVertex(minX, minY, maxZ, 0f, 0f, 1f, r, g, b, a)
+            var i1 = addVertex(maxX, minY, maxZ, 0f, 0f, 1f, r, g, b, a)
+            var i2 = addVertex(maxX, maxY, maxZ, 0f, 0f, 1f, r, g, b, a)
+            var i3 = addVertex(minX, maxY, maxZ, 0f, 0f, 1f, r, g, b, a)
             addQuad(i0, i1, i2, i3)
 
             // Back (-Z)
-            i0 = addVertex(maxX, minY, minZ, 0f, 0f, -1f, r, g, b)
-            i1 = addVertex(minX, minY, minZ, 0f, 0f, -1f, r, g, b)
-            i2 = addVertex(minX, maxY, minZ, 0f, 0f, -1f, r, g, b)
-            i3 = addVertex(maxX, maxY, minZ, 0f, 0f, -1f, r, g, b)
+            i0 = addVertex(maxX, minY, minZ, 0f, 0f, -1f, r, g, b, a)
+            i1 = addVertex(minX, minY, minZ, 0f, 0f, -1f, r, g, b, a)
+            i2 = addVertex(minX, maxY, minZ, 0f, 0f, -1f, r, g, b, a)
+            i3 = addVertex(maxX, maxY, minZ, 0f, 0f, -1f, r, g, b, a)
             addQuad(i0, i1, i2, i3)
 
             // Top (+Y)
-            i0 = addVertex(minX, maxY, maxZ, 0f, 1f, 0f, r, g, b)
-            i1 = addVertex(maxX, maxY, maxZ, 0f, 1f, 0f, r, g, b)
-            i2 = addVertex(maxX, maxY, minZ, 0f, 1f, 0f, r, g, b)
-            i3 = addVertex(minX, maxY, minZ, 0f, 1f, 0f, r, g, b)
+            i0 = addVertex(minX, maxY, maxZ, 0f, 1f, 0f, r, g, b, a)
+            i1 = addVertex(maxX, maxY, maxZ, 0f, 1f, 0f, r, g, b, a)
+            i2 = addVertex(maxX, maxY, minZ, 0f, 1f, 0f, r, g, b, a)
+            i3 = addVertex(minX, maxY, minZ, 0f, 1f, 0f, r, g, b, a)
+            addQuad(i0, i1, i2, i3)
+
+            // Bottom (-Y)
+            i0 = addVertex(minX, minY, minZ, 0f, -1f, 0f, r, g, b, a)
+            i1 = addVertex(maxX, minY, minZ, 0f, -1f, 0f, r, g, b, a)
+            i2 = addVertex(maxX, minY, maxZ, 0f, -1f, 0f, r, g, b, a)
+            i3 = addVertex(minX, minY, maxZ, 0f, -1f, 0f, r, g, b, a)
             addQuad(i0, i1, i2, i3)
 
             // Left (-X)
-            i0 = addVertex(minX, minY, minZ, -1f, 0f, 0f, r, g, b)
-            i1 = addVertex(minX, minY, maxZ, -1f, 0f, 0f, r, g, b)
-            i2 = addVertex(minX, maxY, maxZ, -1f, 0f, 0f, r, g, b)
-            i3 = addVertex(minX, maxY, minZ, -1f, 0f, 0f, r, g, b)
+            i0 = addVertex(minX, minY, minZ, -1f, 0f, 0f, r, g, b, a)
+            i1 = addVertex(minX, minY, maxZ, -1f, 0f, 0f, r, g, b, a)
+            i2 = addVertex(minX, maxY, maxZ, -1f, 0f, 0f, r, g, b, a)
+            i3 = addVertex(minX, maxY, minZ, -1f, 0f, 0f, r, g, b, a)
             addQuad(i0, i1, i2, i3)
 
             // Right (+X)
-            i0 = addVertex(maxX, minY, maxZ, 1f, 0f, 0f, r, g, b)
-            i1 = addVertex(maxX, minY, minZ, 1f, 0f, 0f, r, g, b)
-            i2 = addVertex(maxX, maxY, minZ, 1f, 0f, 0f, r, g, b)
-            i3 = addVertex(maxX, maxY, maxZ, 1f, 0f, 0f, r, g, b)
+            i0 = addVertex(maxX, minY, maxZ, 1f, 0f, 0f, r, g, b, a)
+            i1 = addVertex(maxX, minY, minZ, 1f, 0f, 0f, r, g, b, a)
+            i2 = addVertex(maxX, maxY, minZ, 1f, 0f, 0f, r, g, b, a)
+            i3 = addVertex(maxX, maxY, maxZ, 1f, 0f, 0f, r, g, b, a)
             addQuad(i0, i1, i2, i3)
         }
 
@@ -299,23 +315,39 @@ object TrackMeshBuilder {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Road Surface Mesh Generation with Realistic Banking, Camber & Markings
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 4. ROAD SURFACE GENERATOR WITH AUTHENTIC MOTORSPORT MARKINGS
+    // =============================================================================================
     private fun generateRoadMesh(
         spline: List<TrackSplinePoint>,
-        isWet: Boolean,
-        isMountain: Boolean = false,
-        isUrban: Boolean = false
+        trackType: TrackType
     ): Mesh {
         val mb = MeshBuffer()
         val count = spline.size
 
-        // Surface palette
-        val asphalt = if (isWet) floatArrayOf(0.12f, 0.13f, 0.15f) else floatArrayOf(0.22f, 0.23f, 0.25f)
-        val racingGroove = if (isWet) floatArrayOf(0.08f, 0.09f, 0.10f) else floatArrayOf(0.14f, 0.15f, 0.16f)
-        val whiteLine = floatArrayOf(0.95f, 0.95f, 0.98f)
-        val runoffColor = if (isMountain) floatArrayOf(0.35f, 0.32f, 0.28f) else floatArrayOf(0.28f, 0.26f, 0.22f)
+        // Surface color palettes
+        val asphaltDry = floatArrayOf(0.22f, 0.23f, 0.25f)
+        val asphaltWet = floatArrayOf(0.11f, 0.12f, 0.14f)
+        val asphaltMountain = floatArrayOf(0.26f, 0.25f, 0.24f)
+        val racingGroove = floatArrayOf(0.12f, 0.13f, 0.14f)
+        val whiteLine = floatArrayOf(0.96f, 0.96f, 0.98f)
+        val yellowLine = floatArrayOf(0.95f, 0.78f, 0.12f)
+        val gridBoxYellow = floatArrayOf(1.0f, 0.85f, 0.15f)
+        val gravelRunoff = floatArrayOf(0.42f, 0.38f, 0.30f)
+        val mountainShoulder = floatArrayOf(0.36f, 0.33f, 0.29f)
+        val urbanCurbRunoff = floatArrayOf(0.38f, 0.40f, 0.42f)
+
+        val isWet = trackType == TrackType.NEON_METROPOLIS
+        val baseAsphalt = when (trackType) {
+            TrackType.NEON_METROPOLIS -> asphaltWet
+            TrackType.ALPINE_PASS -> asphaltMountain
+            TrackType.GRAND_PRIX -> asphaltDry
+        }
+        val defaultRunoff = when (trackType) {
+            TrackType.NEON_METROPOLIS -> urbanCurbRunoff
+            TrackType.ALPINE_PASS -> mountainShoulder
+            TrackType.GRAND_PRIX -> gravelRunoff
+        }
 
         for (i in 0 until count) {
             val curr = spline[i]
@@ -329,7 +361,7 @@ object TrackMeshBuilder {
             val tangentX = tx / tHoriz
             val tangentZ = tz / tHoriz
 
-            // Horizontal perpendicular vector (pointing to the right of track)
+            // Right normal
             val perpX = -tangentZ
             val perpZ = tangentX
 
@@ -350,74 +382,117 @@ object TrackMeshBuilder {
 
             val halfW = curr.width * 0.5f
 
-            // Start/finish checkered line at start (i = 0)
+            // Start line checkered pattern at i = 0
             val isStartLine = i == 0
-            // Dashed center line pattern (cycles every 6 segments: 3 marked, 3 unmarked)
-            val isDashedMarking = (i % 6) < 3
+            // Starting grid markings for i in 1..8
+            val isGridZone = i in 1..8
+            // Centerline dash pattern (3 segments on, 3 segments off)
+            val isCenterMarked = (i % 6) < 3
 
-            // Determine cross-section vertex colors
+            // Runway width offsets:
+            // 0: Left Runoff outer
+            // 1: Left Runoff apron / inner
+            // 2: Left Boundary Line
+            // 3: Left Racing Lane (grooved)
+            // 4: Center Line (white dash, double yellow, or urban markings)
+            // 5: Right Racing Lane (grooved)
+            // 6: Right Boundary Line
+            // 7: Right Runoff apron / inner
+            // 8: Right Runoff outer
+
+            val runoffLeftW = if (curr.hasRunoffLeft) 3.8f else 0.9f
+            val runoffRightW = if (curr.hasRunoffRight) 3.8f else 0.9f
+
+            // Determine boundary line colors
             val colLeftBorder = whiteLine
             val colRightBorder = whiteLine
-            val colCenter = if (isStartLine) whiteLine else if (isDashedMarking) whiteLine else racingGroove
 
-            val runoffLeftW = if (curr.hasRunoffLeft) 3.5f else 0.8f
-            val runoffRightW = if (curr.hasRunoffRight) 3.5f else 0.8f
+            // Determine center line color
+            val colCenter = when (trackType) {
+                TrackType.ALPINE_PASS -> {
+                    // Double yellow on winding curves, dashed yellow on straight
+                    if (curr.hasLeftKerb || curr.hasRightKerb || !isCenterMarked) yellowLine else asphaltMountain
+                }
+                TrackType.NEON_METROPOLIS -> {
+                    if (isStartLine) whiteLine else if (isCenterMarked) whiteLine else asphaltWet
+                }
+                TrackType.GRAND_PRIX -> {
+                    if (isStartLine) whiteLine else if (isCenterMarked) whiteLine else racingGroove
+                }
+            }
 
-            // 6 Columns across cross-section:
-            // 0: Left Runoff/Shoulder outer edge
-            // 1: Left Track Limit Line (White)
-            // 2: Left Lane Racing Groove
-            // 3: Track Center Line (Dashed or Solid)
-            // 4: Right Lane Racing Groove
-            // 5: Right Track Limit Line (White)
-            // 6: Right Runoff/Shoulder outer edge
+            // Left & Right lane colors
+            var colLaneLeft = if (isWet) asphaltWet else racingGroove
+            var colLaneRight = if (isWet) asphaltWet else racingGroove
 
-            // Col 0: Left Runoff outer
-            val col0X = curr.x - rx * (halfW + runoffLeftW)
-            val col0Y = curr.y - ry * (halfW + runoffLeftW) - 0.02f
-            val col0Z = curr.z - rz * (halfW + runoffLeftW)
-            mb.addVertex(col0X, col0Y, col0Z, nx, ny, nz, runoffColor[0], runoffColor[1], runoffColor[2])
+            if (isStartLine) {
+                // Checkered starting line pattern alternating across lanes
+                colLaneLeft = if (i % 2 == 0) whiteLine else baseAsphalt
+                colLaneRight = if (i % 2 == 1) whiteLine else baseAsphalt
+            } else if (isGridZone && trackType == TrackType.GRAND_PRIX) {
+                // Staggered grid boxes
+                val isLeftBox = (i % 4) == 2
+                val isRightBox = (i % 4) == 0
+                if (isLeftBox) colLaneLeft = gridBoxYellow
+                if (isRightBox) colLaneRight = gridBoxYellow
+            }
 
-            // Col 1: Left Boundary Line
-            val col1X = curr.x - rx * halfW
-            val col1Y = curr.y - ry * halfW
-            val col1Z = curr.z - rz * halfW
-            mb.addVertex(col1X, col1Y, col1Z, nx, ny, nz, colLeftBorder[0], colLeftBorder[1], colLeftBorder[2])
+            // Col 0: Left Runoff Outer
+            var px = curr.x - rx * (halfW + runoffLeftW)
+            var py = curr.y - ry * (halfW + runoffLeftW) - 0.03f
+            var pz = curr.z - rz * (halfW + runoffLeftW)
+            mb.addVertex(px, py, pz, nx, ny, nz, defaultRunoff[0], defaultRunoff[1], defaultRunoff[2])
 
-            // Col 2: Left Lane
-            val col2X = curr.x - rx * (halfW * 0.5f)
-            val col2Y = curr.y - ry * (halfW * 0.5f) + 0.02f // subtle crown
-            val col2Z = curr.z - rz * (halfW * 0.5f)
-            val c2Color = if (isStartLine && i % 2 == 0) whiteLine else racingGroove
-            mb.addVertex(col2X, col2Y, col2Z, nx, ny, nz, c2Color[0], c2Color[1], c2Color[2])
+            // Col 1: Left Runoff Inner / Kerb Apron
+            px = curr.x - rx * (halfW + 0.35f)
+            py = curr.y - ry * (halfW + 0.35f) - 0.01f
+            pz = curr.z - rz * (halfW + 0.35f)
+            mb.addVertex(px, py, pz, nx, ny, nz, defaultRunoff[0], defaultRunoff[1], defaultRunoff[2])
 
-            // Col 3: Centerline
-            val col3X = curr.x
-            val col3Y = curr.y + 0.03f // Crown peak
-            val col3Z = curr.z
-            mb.addVertex(col3X, col3Y, col3Z, nx, ny, nz, colCenter[0], colCenter[1], colCenter[2])
+            // Col 2: Left Boundary Line
+            px = curr.x - rx * halfW
+            py = curr.y - ry * halfW
+            pz = curr.z - rz * halfW
+            mb.addVertex(px, py, pz, nx, ny, nz, colLeftBorder[0], colLeftBorder[1], colLeftBorder[2])
 
-            // Col 4: Right Lane
-            val col4X = curr.x + rx * (halfW * 0.5f)
-            val col4Y = curr.y + ry * (halfW * 0.5f) + 0.02f
-            val col4Z = curr.z + rz * (halfW * 0.5f)
-            val c4Color = if (isStartLine && i % 2 == 1) whiteLine else racingGroove
-            mb.addVertex(col4X, col4Y, col4Z, nx, ny, nz, c4Color[0], c4Color[1], c4Color[2])
+            // Col 3: Left Racing Lane (camber crown: +0.02m)
+            px = curr.x - rx * (halfW * 0.5f)
+            py = curr.y - ry * (halfW * 0.5f) + 0.02f
+            pz = curr.z - rz * (halfW * 0.5f)
+            mb.addVertex(px, py, pz, nx, ny, nz, colLaneLeft[0], colLaneLeft[1], colLaneLeft[2])
 
-            // Col 5: Right Boundary Line
-            val col5X = curr.x + rx * halfW
-            val col5Y = curr.y + ry * halfW
-            val col5Z = curr.z + rz * halfW
-            mb.addVertex(col5X, col5Y, col5Z, nx, ny, nz, colRightBorder[0], colRightBorder[1], colRightBorder[2])
+            // Col 4: Track Centerline (crown peak: +0.035m)
+            px = curr.x
+            py = curr.y + 0.035f
+            pz = curr.z
+            mb.addVertex(px, py, pz, nx, ny, nz, colCenter[0], colCenter[1], colCenter[2])
 
-            // Col 6: Right Runoff outer
-            val col6X = curr.x + rx * (halfW + runoffRightW)
-            val col6Y = curr.y + ry * (halfW + runoffRightW) - 0.02f
-            val col6Z = curr.z + rz * (halfW + runoffRightW)
-            mb.addVertex(col6X, col6Y, col6Z, nx, ny, nz, runoffColor[0], runoffColor[1], runoffColor[2])
+            // Col 5: Right Racing Lane (camber crown: +0.02m)
+            px = curr.x + rx * (halfW * 0.5f)
+            py = curr.y + ry * (halfW * 0.5f) + 0.02f
+            pz = curr.z + rz * (halfW * 0.5f)
+            mb.addVertex(px, py, pz, nx, ny, nz, colLaneRight[0], colLaneRight[1], colLaneRight[2])
+
+            // Col 6: Right Boundary Line
+            px = curr.x + rx * halfW
+            py = curr.y + ry * halfW
+            pz = curr.z + rz * halfW
+            mb.addVertex(px, py, pz, nx, ny, nz, colRightBorder[0], colRightBorder[1], colRightBorder[2])
+
+            // Col 7: Right Runoff Inner / Kerb Apron
+            px = curr.x + rx * (halfW + 0.35f)
+            py = curr.y + ry * (halfW + 0.35f) - 0.01f
+            pz = curr.z + rz * (halfW + 0.35f)
+            mb.addVertex(px, py, pz, nx, ny, nz, defaultRunoff[0], defaultRunoff[1], defaultRunoff[2])
+
+            // Col 8: Right Runoff Outer
+            px = curr.x + rx * (halfW + runoffRightW)
+            py = curr.y + ry * (halfW + runoffRightW) - 0.03f
+            pz = curr.z + rz * (halfW + runoffRightW)
+            mb.addVertex(px, py, pz, nx, ny, nz, defaultRunoff[0], defaultRunoff[1], defaultRunoff[2])
         }
 
-        val cols = 7
+        val cols = 9
         for (i in 0 until count) {
             val nextI = (i + 1) % count
             val base0 = (i * cols).toShort()
@@ -435,9 +510,9 @@ object TrackMeshBuilder {
         return mb.build()
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // FIA Racing Curbs with 3D Beveled Profile
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 5. FIA RACING KERBS WITH 3D BEVELED PROFILE & ALTERNATING COLORS
+    // =============================================================================================
     private fun generateKerbMesh(spline: List<TrackSplinePoint>): Mesh {
         val mb = MeshBuffer()
         val redKerb = floatArrayOf(0.92f, 0.12f, 0.12f)
@@ -449,18 +524,16 @@ object TrackMeshBuilder {
 
         for (i in 0 until count) {
             val curr = spline[i]
-            if (!curr.hasLeftKerb && !curr.hasRightKerb) continue
-
             val next = spline[(i + 1) % count]
+            val color = if ((i / 2) % 2 == 0) redKerb else whiteKerb
+
             val tx = next.x - curr.x
             val tz = next.z - curr.z
             val tLen = sqrt(tx * tx + tz * tz).coerceAtLeast(0.001f)
             val perpX = -(tz / tLen)
             val perpZ = (tx / tLen)
 
-            val isRed = (i / 3) % 2 == 0
-            val color = if (isRed) redKerb else whiteKerb
-
+            // Right Kerb
             if (curr.hasRightKerb) {
                 val halfW = curr.width * 0.5f
                 val p0X = curr.x + perpX * halfW
@@ -473,23 +546,24 @@ object TrackMeshBuilder {
                 val np0X = next.x + perpX * (next.width * 0.5f)
                 val np0Z = next.z + perpZ * (next.width * 0.5f)
                 val np1X = next.x + perpX * (next.width * 0.5f + kerbWidth * 0.5f)
-                val np1Z = next.z + perpZ * (next.width * 0.5f + kerbWidth * 0.5f)
+                val np1Z = next.z + perpX * (next.width * 0.5f + kerbWidth * 0.5f)
                 val np2X = next.x + perpX * (next.width * 0.5f + kerbWidth)
-                val np2Z = next.z + perpZ * (next.width * 0.5f + kerbWidth)
+                val np2Z = next.z + perpX * (next.width * 0.5f + kerbWidth)
 
-                // Ramp inner section
+                // Outer bevel
                 val v0 = mb.addVertex(p0X, curr.y + 0.01f, p0Z, 0f, 1f, 0f, color[0], color[1], color[2])
                 val v1 = mb.addVertex(p1X, curr.y + kerbHeight, p1Z, -perpX * 0.5f, 0.86f, -perpZ * 0.5f, color[0], color[1], color[2])
                 val v2 = mb.addVertex(np1X, next.y + kerbHeight, np1Z, -perpX * 0.5f, 0.86f, -perpZ * 0.5f, color[0], color[1], color[2])
                 val v3 = mb.addVertex(np0X, next.y + 0.01f, np0Z, 0f, 1f, 0f, color[0], color[1], color[2])
                 mb.addQuad(v0, v1, v2, v3)
 
-                // Bevel outer section
+                // Inner slope
                 val v4 = mb.addVertex(p2X, curr.y + 0.02f, p2Z, perpX * 0.5f, 0.86f, perpZ * 0.5f, color[0], color[1], color[2])
                 val v5 = mb.addVertex(np2X, next.y + 0.02f, np2Z, perpX * 0.5f, 0.86f, perpZ * 0.5f, color[0], color[1], color[2])
                 mb.addQuad(v1, v4, v5, v2)
             }
 
+            // Left Kerb
             if (curr.hasLeftKerb) {
                 val halfW = curr.width * 0.5f
                 val p0X = curr.x - perpX * halfW
@@ -521,21 +595,26 @@ object TrackMeshBuilder {
         return mb.build()
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Crash Barriers, Guardrails & Tire Barriers
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 6. CRASH BARRIERS, GUARDRAILS & TIRE WALLS
+    // =============================================================================================
     private fun generateBarrierMesh(
         spline: List<TrackSplinePoint>,
-        guardrailHeight: Float = 1.15f,
-        hasTireBarriers: Boolean = false,
-        isAlpine: Boolean = false,
-        isUrban: Boolean = false
+        trackType: TrackType
     ): Mesh {
         val mb = MeshBuffer()
-        val armcoColor = if (isUrban) floatArrayOf(0.72f, 0.75f, 0.80f) else floatArrayOf(0.80f, 0.82f, 0.86f)
+        val armcoColor = floatArrayOf(0.80f, 0.82f, 0.86f)
         val postColor = floatArrayOf(0.35f, 0.36f, 0.38f)
+        val concreteWall = floatArrayOf(0.74f, 0.75f, 0.77f)
         val tireColor = floatArrayOf(0.12f, 0.12f, 0.13f)
         val tireCapColor = floatArrayOf(0.92f, 0.15f, 0.15f)
+        val chevronYellow = floatArrayOf(1.0f, 0.85f, 0.10f)
+
+        val guardrailHeight = when (trackType) {
+            TrackType.ALPINE_PASS -> 1.25f
+            TrackType.NEON_METROPOLIS -> 1.10f
+            TrackType.GRAND_PRIX -> 1.15f
+        }
 
         val count = spline.size
         for (i in 0 until count step 2) {
@@ -587,21 +666,31 @@ object TrackMeshBuilder {
             // Left vertical post
             mb.addBox(lx0 - 0.12f, curr.y, lz0 - 0.12f, lx0 + 0.12f, hHigh + 0.1f, lz0 + 0.12f, postColor[0], postColor[1], postColor[2])
 
-            // Stacked Tire Bundles on sharp runoff corners
-            if (hasTireBarriers && (curr.hasRunoffLeft || curr.hasRunoffRight)) {
-                val tX = if (curr.hasRunoffLeft) lx0 - perpX * 0.9f else rx0 + perpX * 0.9f
-                val tZ = if (curr.hasRunoffLeft) lz0 - perpZ * 0.9f else rz0 + perpZ * 0.9f
+            // Tire barriers on runoff zones (Grand Prix)
+            if (trackType == TrackType.GRAND_PRIX && (curr.hasRunoffLeft || curr.hasRunoffRight)) {
+                val tX = if (curr.hasRunoffLeft) lx0 - perpX * 1.0f else rx0 + perpX * 1.0f
+                val tZ = if (curr.hasRunoffLeft) lz0 - perpZ * 1.0f else rz0 + perpZ * 1.0f
                 val cap = if ((i / 4) % 2 == 0) tireCapColor else tireColor
-                mb.addBox(tX - 0.55f, curr.y, tZ - 0.55f, tX + 0.55f, curr.y + 0.95f, tZ + 0.55f, cap[0], cap[1], cap[2])
+                mb.addBox(tX - 0.6f, curr.y, tZ - 0.6f, tX + 0.6f, curr.y + 0.95f, tZ + 0.6f, cap[0], cap[1], cap[2])
+            }
+
+            // Urban jersey concrete barriers & chevron markers (Neon Metropolis)
+            if (trackType == TrackType.NEON_METROPOLIS && (curr.hasRunoffLeft || curr.hasRunoffRight)) {
+                val cX = if (curr.hasRunoffLeft) lx0 - perpX * 0.6f else rx0 + perpX * 0.6f
+                val cZ = if (curr.hasRunoffLeft) lz0 - perpZ * 0.6f else rz0 + perpZ * 0.6f
+                mb.addBox(cX - 0.4f, curr.y, cZ - 0.4f, cX + 0.4f, curr.y + 1.05f, cZ + 0.4f, concreteWall[0], concreteWall[1], concreteWall[2])
+                if ((i / 4) % 2 == 0) {
+                    mb.addBox(cX - 0.42f, curr.y + 0.35f, cZ - 0.42f, cX + 0.42f, curr.y + 0.75f, cZ + 0.42f, chevronYellow[0], chevronYellow[1], chevronYellow[2])
+                }
             }
         }
 
         return mb.build()
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Coastal Grand Prix Circuit Scenery: Pit Complex, Grandstands, Palms & Ocean Bay
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 7. COASTAL GRAND PRIX SCENERY (Pits, Hospitality, Grandstands, Palm Trees & Ocean Bay)
+    // =============================================================================================
     private fun generateGrandPrixSceneryMesh(spline: List<TrackSplinePoint>): Mesh {
         val mb = MeshBuffer()
 
@@ -632,7 +721,7 @@ object TrackMeshBuilder {
         val g3 = mb.addVertex(-35f, -0.1f, 800f, 0f, 1f, 0f, grass2[0], grass2[1], grass2[2])
         mb.addQuad(g0, g1, g2, g3)
 
-        // 2. Modern Pit Complex & Team Garages along Main Straight (Left side, X = -22m to -12m)
+        // 2. Modern Pit Complex & Team Garages along Main Straight (Left side, X = -24m to -14m)
         val concreteWhite = floatArrayOf(0.88f, 0.88f, 0.90f)
         val pitDoorGray = floatArrayOf(0.28f, 0.32f, 0.38f)
         val glassCyan = floatArrayOf(0.15f, 0.45f, 0.65f)
@@ -655,7 +744,11 @@ object TrackMeshBuilder {
         mb.addBox(-26f, 0f, -5f, -18f, 14.5f, 15f, concreteWhite[0], concreteWhite[1], concreteWhite[2])
         mb.addBox(-25.5f, 10f, -4f, -17.5f, 14.0f, 14f, glassCyan[0], glassCyan[1], glassCyan[2])
 
-        // 3. Multi-Tiered Main Grandstand opposite Start Straight (Right side, X = 15m to 30m)
+        // Pit Lane Dividing Wall (separating track from pit lane)
+        val pitWallGray = floatArrayOf(0.78f, 0.80f, 0.82f)
+        mb.addBox(-11.5f, 0f, -50f, -10.8f, 1.1f, 140f, pitWallGray[0], pitWallGray[1], pitWallGray[2])
+
+        // 3. Multi-Tiered Main Grandstand opposite Start Straight (Right side, X = 16m to 32m)
         val seatBlue = floatArrayOf(0.18f, 0.35f, 0.85f)
         val seatRed = floatArrayOf(0.85f, 0.18f, 0.18f)
 
@@ -671,7 +764,7 @@ object TrackMeshBuilder {
         // Grandstand Cantilever Roof
         mb.addBox(14.5f, 9.5f, -32f, 32f, 10.2f, 132f, concreteWhite[0], concreteWhite[1], concreteWhite[2])
 
-        // 4. Turn 1 Stadium Grandstand (X = 55 to 80, Z = 370 to 440)
+        // 4. Turn 1 Stadium Grandstand (X = 60 to 75, Z = 380 to 430)
         mb.addBox(60f, 0f, 380f, 75f, 7.5f, 430f, concreteWhite[0], concreteWhite[1], concreteWhite[2])
         mb.addBox(58f, 7.8f, 378f, 77f, 8.5f, 432f, sponsorRed[0], sponsorRed[1], sponsorRed[2])
 
@@ -703,12 +796,33 @@ object TrackMeshBuilder {
             mb.addBox(8.4f, 0.8f, z + 0.2f, 8.45f, 1.9f, z + 1.5f, boardBlack[0], boardBlack[1], boardBlack[2])
         }
 
+        // 7. Trackside Sponsor Hoardings (Apex GT, Pirelli, Castrol)
+        val sponsorCyan = floatArrayOf(0.0f, 0.85f, 0.95f)
+        val sponsorYellow = floatArrayOf(0.95f, 0.82f, 0.10f)
+        // Along Main Straight
+        mb.addBox(9.5f, 0.2f, 140f, 9.8f, 1.8f, 175f, sponsorCyan[0], sponsorCyan[1], sponsorCyan[2])
+        // Outside Turn 1 Sweeper
+        mb.addBox(48f, 1.8f, 370f, 55f, 3.2f, 370.4f, sponsorYellow[0], sponsorYellow[1], sponsorYellow[2])
+
+        // 8. Trackside Marshall Intervention Posts
+        val postWhite = floatArrayOf(0.92f, 0.92f, 0.92f)
+        val postOrange = floatArrayOf(1.0f, 0.45f, 0.05f)
+        val marshallLocations = listOf(
+            Vector3f(9.5f, 0f, 280f),
+            Vector3f(52f, 1.5f, 650f),
+            Vector3f(275f, 2.0f, 400f)
+        )
+        for (m in marshallLocations) {
+            mb.addBox(m.x - 0.8f, m.y, m.z - 0.8f, m.x + 0.8f, m.y + 2.4f, m.z + 0.8f, postWhite[0], postWhite[1], postWhite[2])
+            mb.addBox(m.x - 0.9f, m.y + 2.4f, m.z - 0.9f, m.x + 0.9f, m.y + 2.6f, m.z + 0.9f, postOrange[0], postOrange[1], postOrange[2])
+        }
+
         return mb.build()
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Alpine Pass Scenery: Granite Mountain Crags, Ravine Viaduct, Pine Forests & Snow Peaks
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 8. ALPINE MOUNTAIN PASS SCENERY (Crags, Gorge Viaduct, Pine Forests & Snow Peaks)
+    // =============================================================================================
     private fun generateAlpineSceneryMesh(spline: List<TrackSplinePoint>): Mesh {
         val mb = MeshBuffer()
         val rockGray = floatArrayOf(0.40f, 0.38f, 0.36f)
@@ -782,12 +896,18 @@ object TrackMeshBuilder {
             mb.addBox(pos.x - 1.2f, pos.y + 6.6f, pos.z - 1.2f, pos.x + 1.2f, pos.y + 8.5f, pos.z + 1.2f, topColor[0], topColor[1], topColor[2])
         }
 
+        // 5. Alpine Summit Pass Marker Sign (at Summit Hairpin)
+        val timberWood = floatArrayOf(0.45f, 0.32f, 0.20f)
+        val signCream = floatArrayOf(0.92f, 0.90f, 0.82f)
+        mb.addBox(92f, 26f, -196f, 92.3f, 28.5f, -195.7f, timberWood[0], timberWood[1], timberWood[2])
+        mb.addBox(91.5f, 27.5f, -196.5f, 92.5f, 28.5f, -195f, signCream[0], signCream[1], signCream[2])
+
         return mb.build()
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Neon Metropolis Scenery: Sidewalks, Varied Skyscraper Architecture, Gantries & Skybridge
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 9. NEON METROPOLIS SCENERY (Sidewalks, Skyscraper Skyline, Neon Billboards & Skybridge)
+    // =============================================================================================
     private fun generateMetropolisSceneryMesh(spline: List<TrackSplinePoint>): Mesh {
         val mb = MeshBuffer()
 
@@ -844,7 +964,7 @@ object TrackMeshBuilder {
 
         // 2. High-Tech Arched Streetlights along avenues
         val poleColor = floatArrayOf(0.25f, 0.28f, 0.32f)
-        val lampGlow = floatArrayOf(1.8f, 1.6f, 1.2f) // warm street illumination
+        val lampGlow = floatArrayOf(1.8f, 1.6f, 1.2f) // warm street illumination (emissive)
         for (i in 0 until count step 12) {
             val curr = spline[i]
             val next = spline[(i + 1) % count]
@@ -865,11 +985,11 @@ object TrackMeshBuilder {
         // 3. Diverse Skyscraper Cityscape with Stepped Architecture & Neon Crowns
         val darkFacade = floatArrayOf(0.08f, 0.10f, 0.14f)
         val glassFacade = floatArrayOf(0.12f, 0.16f, 0.24f)
-        val neonCyan = floatArrayOf(0.0f, 0.90f, 1.0f)
-        val neonMagenta = floatArrayOf(1.0f, 0.15f, 0.85f)
-        val neonAmber = floatArrayOf(1.0f, 0.70f, 0.10f)
+        val neonCyan = floatArrayOf(0.0f, 1.6f, 2.0f) // Emissive
+        val neonMagenta = floatArrayOf(2.0f, 0.2f, 1.6f) // Emissive
+        val neonAmber = floatArrayOf(2.0f, 1.4f, 0.2f) // Emissive
+        val windowWarmLit = floatArrayOf(1.8f, 1.5f, 0.9f) // Emissive window grid
 
-        // Varied Skyscrapers around perimeter
         data class BuildingDef(val x: Float, val z: Float, val w: Float, val d: Float, val h: Float, val accent: FloatArray, val isStepped: Boolean)
 
         val buildings = listOf(
@@ -902,6 +1022,10 @@ object TrackMeshBuilder {
                 mb.addBox(b.x - stepW * 0.52f, b.h, b.z - stepD * 0.52f, b.x + stepW * 0.52f, b.h + 2.5f, b.z + stepD * 0.52f, b.accent[0], b.accent[1], b.accent[2])
                 // Spire Antenna
                 mb.addBox(b.x - 0.4f, b.h + 2.5f, b.z - 0.4f, b.x + 0.4f, b.h + 16f, b.z + 0.4f, b.accent[0], b.accent[1], b.accent[2])
+
+                // Illuminated Office Window Stripes along facade
+                mb.addBox(b.x - stepW * 0.45f, b.h * 0.70f, b.z + stepD * 0.51f, b.x + stepW * 0.45f, b.h * 0.72f, b.z + stepD * 0.52f, windowWarmLit[0], windowWarmLit[1], windowWarmLit[2])
+                mb.addBox(b.x - stepW * 0.45f, b.h * 0.82f, b.z + stepD * 0.51f, b.x + stepW * 0.45f, b.h * 0.84f, b.z + stepD * 0.52f, windowWarmLit[0], windowWarmLit[1], windowWarmLit[2])
             } else {
                 // Monolithic Glass Tower
                 mb.addBox(b.x - b.w * 0.5f, 0f, b.z - b.d * 0.5f, b.x + b.w * 0.5f, b.h, b.z + b.d * 0.5f, glassFacade[0], glassFacade[1], glassFacade[2])
@@ -918,23 +1042,34 @@ object TrackMeshBuilder {
 
         // 5. Overhead Highway Signage Gantries
         val gantrySteel = floatArrayOf(0.35f, 0.38f, 0.42f)
-        val signNeon = floatArrayOf(0.0f, 0.85f, 1.0f)
+        val signNeon = floatArrayOf(0.0f, 1.8f, 2.2f)
         // Gantry 1 over North Boulevard (Z = 120m)
         mb.addBox(-10f, 0f, 120f, -9f, 8.0f, 121f, gantrySteel[0], gantrySteel[1], gantrySteel[2])
         mb.addBox(9f, 0f, 120f, 10f, 8.0f, 121f, gantrySteel[0], gantrySteel[1], gantrySteel[2])
         mb.addBox(-9.5f, 6.5f, 120f, 9.5f, 7.8f, 121f, gantrySteel[0], gantrySteel[1], gantrySteel[2])
         mb.addBox(-7.0f, 5.0f, 120.2f, 7.0f, 6.8f, 120.8f, signNeon[0], signNeon[1], signNeon[2])
 
+        // 6. Neon Advertising Billboard Towers
+        val billboardLocations = listOf(
+            Triple(25f, 310f, neonMagenta),
+            Triple(350f, 280f, neonCyan),
+            Triple(335f, -100f, neonAmber)
+        )
+        for ((bx, bz, bColor) in billboardLocations) {
+            mb.addBox(bx - 0.4f, 0f, bz - 0.4f, bx + 0.4f, 12f, bz + 0.4f, gantrySteel[0], gantrySteel[1], gantrySteel[2])
+            mb.addBox(bx - 5.5f, 12f, bz - 0.5f, bx + 5.5f, 18f, bz + 0.5f, bColor[0], bColor[1], bColor[2])
+        }
+
         return mb.build()
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Start / Finish Line Gantry with F1 LED Starting Light Pods
-    // ---------------------------------------------------------------------------------------------
+    // =============================================================================================
+    // 10. START / FINISH LINE GANTRY WITH F1 LED STARTING LIGHT PODS
+    // =============================================================================================
     private fun generateStartGantryMesh(startPoint: TrackSplinePoint): Mesh {
         val mb = MeshBuffer()
         val frameColor = floatArrayOf(0.22f, 0.24f, 0.28f)
-        val lightRed = floatArrayOf(1.8f, 0.15f, 0.15f)
+        val lightRed = floatArrayOf(2.5f, 0.2f, 0.2f) // Emissive
         val sponsorLivery = floatArrayOf(0.95f, 0.95f, 0.98f)
 
         val span = startPoint.width * 0.5f + 2.8f

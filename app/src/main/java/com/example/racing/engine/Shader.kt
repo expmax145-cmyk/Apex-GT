@@ -330,12 +330,16 @@ class Shader(
                     wetReflection = puddleEnv * (wetF * 1.8 + 0.25) * u_WetRoadActive * puddleNoise;
                 }
 
-                // --- 7. LED Headlight, Taillight & Brake Light Glow ---
+                // --- 7. LED Headlight, Taillight & Neon Emissive Glow ---
                 vec3 emission = u_EmissionColor.rgb;
-                if (v_VertexColor.r > 0.85 && v_VertexColor.g < 0.20 && v_VertexColor.b < 0.20) {
+                // High-intensity emissive vertices for neon signs, streetlights, and starting lights
+                if (v_VertexColor.r > 1.05 || v_VertexColor.g > 1.05 || v_VertexColor.b > 1.05) {
+                    emission += max(vec3(0.0), v_VertexColor.rgb - vec3(0.8)) * 2.2;
+                }
+                if (v_VertexColor.r > 0.85 && v_VertexColor.g < 0.20 && v_VertexColor.b < 0.20 && v_VertexColor.a <= 1.0) {
                     // Constant LED taillight glow ribbon + intense dynamic brake illumination
                     emission += vec3(0.60, 0.04, 0.04) + vec3(3.2 * u_BrakeIntensity, 0.20 * u_BrakeIntensity, 0.20 * u_BrakeIntensity);
-                } else if (v_VertexColor.r > 0.92 && v_VertexColor.g > 0.95 && v_VertexColor.b > 0.98) {
+                } else if (v_VertexColor.r > 0.92 && v_VertexColor.g > 0.95 && v_VertexColor.b > 0.98 && v_VertexColor.a <= 1.0) {
                     // Crisp Xenon / LED Headlight projector core glow
                     emission += vec3(0.55, 0.65, 0.85);
                 }
