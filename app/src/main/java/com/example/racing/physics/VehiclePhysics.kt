@@ -63,6 +63,8 @@ class VehiclePhysics(
     private val momentOfInertiaZ = massKg * (wheelbaseM * wheelbaseM * 0.25f)
     private val gravity = 9.81f
     private var lastNearestWaypointIdx: Int = 0
+    var reverseHoldTimer: Float = 0f
+    var trackLateralDistance: Float = 0f
 
     fun update(dt: Float, waypoints: List<Vector3f> = emptyList(), roadHalfWidth: Float = 7.0f) {
         val clampedDt = dt.coerceIn(0.001f, 0.035f)
@@ -74,6 +76,7 @@ class VehiclePhysics(
         if (waypoints.isNotEmpty()) {
             val (nearestDist, normalX, normalZ, trackElevY, nearestIdx) = calculateTrackMetrics(waypoints)
             lastNearestWaypointIdx = nearestIdx
+            trackLateralDistance = nearestDist
 
             // Smooth elevation following (tracks climbing and descending)
             val targetY = trackElevY + 0.35f
@@ -90,10 +93,12 @@ class VehiclePhysics(
             val barrierDistance = roadHalfWidth + 3.1f
             if (nearestDist > barrierDistance) {
                 hasCollidedBarrier = true
-                forwardVelocity *= 0.70f // Speed drop from collision friction
-                lateralVelocity = -lateralVelocity * 0.45f // Elastic rebound
-                position.x -= normalX * (nearestDist - barrierDistance) * 0.5f
-                position.z -= normalZ * (nearestDist - barrierDistance) * 0.5f
+                forwardVelocity *= 0.82f // Friction dissipation from barrier contact
+                lateralVelocity *= 0.40f // Dampen lateral velocity without elastic snap oscillation
+                val penetration = (nearestDist - barrierDistance).coerceAtMost(2.0f)
+                // normalX and normalZ point from track to vehicle; subtracting moves vehicle back onto track
+                position.x -= normalX * (penetration * 0.45f)
+                position.z -= normalZ * (penetration * 0.45f)
             }
         }
 
@@ -119,27 +124,26 @@ class VehiclePhysics(
         currentSteerAngleRad += (targetSteer - currentSteerAngleRad) * (clampedDt * steerRate).coerceAtMost(1.0f)
 
         // Automatic Reverse Shifting:
-        // When stopped, brake pedal drives reverse; in reverse, throttle brakes
+        // Hold brake while stationary for > 0.5s to engage Reverse; in Reverse, throttle shifts back to 1st
         var effectiveThrottle = throttle
         var effectiveBrake = brake
 
         if (powertrain.currentGear == 0) { // Reverse gear active
             if (throttle > 0.1f) {
-                // Throttle acts as forward brake in reverse
-                effectiveBrake = throttle
-                effectiveThrottle = 0f
-                if (abs(forwardVelocity) < 0.25f) {
-                    powertrain.currentGear = 2 // Shift back to 1st
-                    powertrain.shiftTimer = 0.15f
-                }
+                // Throttle shifts back to 1st gear and drives forward
+                powertrain.currentGear = 2
+                powertrain.shiftTimer = 0.15f
+                reverseHoldTimer = 0f
+                effectiveThrottle = throttle
+                effectiveBrake = 0f
             } else if (brake > 0.05f) {
-                // Brake pedal acts as reverse throttle
+                // In reverse gear, brake pedal applies reverse throttle
                 effectiveThrottle = brake
                 effectiveBrake = 0f
             }
         } else { // Forward gears
-            if (abs(forwardVelocity) < 0.25f && brake > 0.2f && throttle == 0f) {
-                // Stationary with brake held -> shift into Reverse
+            if (abs(forwardVelocity) < 0.20f && brake > 0.4f && throttle == 0f) {
+                // When stopped and applying brake, engage Reverse gear
                 powertrain.currentGear = 0
                 powertrain.shiftTimer = 0.15f
                 effectiveThrottle = brake
@@ -300,54 +304,95 @@ class VehiclePhysics(
         driftAngleDeg = (angleDiff * (180f / PI.toFloat()))
     }
 
-    private data class TrackMetric(val lateralDist: Float, val normalX: Float, val normalZ: Float, val elevY: Float, val index: Int)
+    data class TrackMetric(val lateralDist: Float, val normalX: Float, val normalZ: Float, val elevY: Float, val index: Int)
 
     private fun calculateTrackMetrics(waypoints: List<Vector3f>): TrackMetric {
         val count = waypoints.size
-        var minDistanceSq = Float.MAX_VALUE
-        var nearestIdx = lastNearestWaypointIdx
+        if (count == 0) return TrackMetric(0f, 0f, 0f, position.y, 0)
 
-        // Windowed search around last nearest waypoint index
-        for (offset in -8..16) {
-            val idx = (lastNearestWaypointIdx + offset + count) % count
-            val wp = waypoints[idx]
-            val dx = position.x - wp.x
-            val dz = position.z - wp.z
+        var minDistanceSq = Float.MAX_VALUE
+        var bestIdx = lastNearestWaypointIdx
+        var bestProjX = position.x
+        var bestProjZ = position.z
+        var bestProjY = position.y
+
+        // 1. Adaptive window search around last nearest waypoint index
+        val window = if (lastNearestWaypointIdx in 0 until count) -12..24 else 0 until count
+        for (offset in window) {
+            val i = (lastNearestWaypointIdx + offset + count) % count
+            val p1 = waypoints[i]
+            val p2 = waypoints[(i + 1) % count]
+
+            val segDx = p2.x - p1.x
+            val segDz = p2.z - p1.z
+            val segLenSq = segDx * segDx + segDz * segDz
+            val t = if (segLenSq > 0.001f) {
+                (((position.x - p1.x) * segDx + (position.z - p1.z) * segDz) / segLenSq).coerceIn(0f, 1f)
+            } else 0f
+
+            val projX = p1.x + t * segDx
+            val projZ = p1.z + t * segDz
+            val dx = position.x - projX
+            val dz = position.z - projZ
             val dSq = dx * dx + dz * dz
+
             if (dSq < minDistanceSq) {
                 minDistanceSq = dSq
-                nearestIdx = idx
+                bestIdx = i
+                bestProjX = projX
+                bestProjZ = projZ
+                bestProjY = p1.y + t * (p2.y - p1.y)
             }
         }
 
-        // Fallback full search if far away
-        if (minDistanceSq > 2500f) {
-            for (i in waypoints.indices) {
-                val wp = waypoints[i]
-                val dx = position.x - wp.x
-                val dz = position.z - wp.z
+        // 2. Fallback full search across all segments if vehicle moves far into the infield/center
+        // This ensures the vehicle never gets stuck on a stale segment when crossing the track interior
+        if (minDistanceSq > 625f) {
+            for (i in 0 until count) {
+                val p1 = waypoints[i]
+                val p2 = waypoints[(i + 1) % count]
+                val segDx = p2.x - p1.x
+                val segDz = p2.z - p1.z
+                val segLenSq = segDx * segDx + segDz * segDz
+                val t = if (segLenSq > 0.001f) {
+                    (((position.x - p1.x) * segDx + (position.z - p1.z) * segDz) / segLenSq).coerceIn(0f, 1f)
+                } else 0f
+
+                val projX = p1.x + t * segDx
+                val projZ = p1.z + t * segDz
+                val dx = position.x - projX
+                val dz = position.z - projZ
                 val dSq = dx * dx + dz * dz
+
                 if (dSq < minDistanceSq) {
                     minDistanceSq = dSq
-                    nearestIdx = i
+                    bestIdx = i
+                    bestProjX = projX
+                    bestProjZ = projZ
+                    bestProjY = p1.y + t * (p2.y - p1.y)
                 }
             }
         }
 
-        val nearest = waypoints[nearestIdx]
-        val next = waypoints[(nearestIdx + 1) % count]
+        val trueDist = sqrt(minDistanceSq)
+        val normalX: Float
+        val normalZ: Float
+        if (trueDist > 0.01f) {
+            // Normal vector pointing from track centerline directly towards vehicle position
+            normalX = (position.x - bestProjX) / trueDist
+            normalZ = (position.z - bestProjZ) / trueDist
+        } else {
+            // Default perpendicular to segment if right on centerline
+            val p1 = waypoints[bestIdx]
+            val p2 = waypoints[(bestIdx + 1) % count]
+            val segDx = p2.x - p1.x
+            val segDz = p2.z - p1.z
+            val sLen = sqrt(segDx * segDx + segDz * segDz).coerceAtLeast(0.01f)
+            normalX = -segDz / sLen
+            normalZ = segDx / sLen
+        }
 
-        val tx = next.x - nearest.x
-        val tz = next.z - nearest.z
-        val tLen = sqrt(tx * tx + tz * tz).coerceAtLeast(0.01f)
-        val normalX = -(tz / tLen)
-        val normalZ = (tx / tLen)
-
-        val cx = position.x - nearest.x
-        val cz = position.z - nearest.z
-
-        val lateralDist = abs(cx * normalX + cz * normalZ)
-        return TrackMetric(lateralDist, normalX, normalZ, nearest.y, nearestIdx)
+        return TrackMetric(trueDist, normalX, normalZ, bestProjY, bestIdx)
     }
 
     fun resetAt(pos: Vector3f, headingRad: Float) {
@@ -368,6 +413,9 @@ class VehiclePhysics(
         speedKmh = 0f
         isOffRoad = false
         hasCollidedBarrier = false
+        reverseHoldTimer = 0f
+        trackLateralDistance = 0f
+        lastNearestWaypointIdx = 0
         powertrain.currentGear = 2
         powertrain.currentRpm = powertrain.idleRpm
     }

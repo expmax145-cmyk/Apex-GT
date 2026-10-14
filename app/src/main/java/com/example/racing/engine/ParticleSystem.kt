@@ -180,6 +180,32 @@ class ParticleSystem(val maxParticles: Int = 160) {
         p.alpha = 0.95f
     }
 
+    fun emitCollisionSparks(x: Float, y: Float, z: Float, intensity: Float = 1.0f) {
+        val count = (4 + (intensity * 8f).toInt()).coerceIn(3, 12)
+        for (i in 0 until count) {
+            val p = particles[nextIdx]
+            nextIdx = (nextIdx + 1) % maxParticles
+
+            p.x = x + (Random.nextFloat() - 0.5f) * 0.22f
+            p.y = y + 0.1f + Random.nextFloat() * 0.2f
+            p.z = z + (Random.nextFloat() - 0.5f) * 0.22f
+
+            p.vx = (Random.nextFloat() - 0.5f) * 3.2f * intensity
+            p.vy = 1.0f + Random.nextFloat() * 2.2f * intensity
+            p.vz = (Random.nextFloat() - 0.5f) * 3.2f * intensity
+
+            p.size = 0.10f + Random.nextFloat() * 0.08f
+            p.age = 0f
+            p.maxAge = 0.18f + Random.nextFloat() * 0.14f
+            p.active = true
+
+            p.r = 1.0f
+            p.g = 0.82f + Random.nextFloat() * 0.18f
+            p.b = 0.20f
+            p.alpha = 0.95f
+        }
+    }
+
     fun update(dt: Float) {
         for (p in particles) {
             if (!p.active) continue

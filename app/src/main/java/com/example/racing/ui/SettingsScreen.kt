@@ -15,8 +15,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -56,9 +60,9 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF0A0E17))
-            .padding(20.dp)
+            .padding(16.dp)
     ) {
-        Column {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -309,6 +313,60 @@ fun SettingsScreen(
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp
                             )
+                        }
+                    }
+
+                    // Development & Debug Mode Card
+                    Surface(
+                        color = Color(0xFF101522),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "DEVELOPMENT & DEBUG MODE",
+                                color = Color(0xFF00E5FF),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { viewModel.grantDevelopmentFunds(500000) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2638)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("dev_add_funds_settings")
+                                ) {
+                                    Text(text = "+$500K", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color(0xFFFFD700))
+                                }
+                                Button(
+                                    onClick = { viewModel.setUnlimitedFunds() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2638)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("dev_unlimited_funds_settings")
+                                ) {
+                                    Text(text = "UNLIMITED", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color(0xFF00E676))
+                                }
+                                Button(
+                                    onClick = { viewModel.unlockAllCarsForDevelopment() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2638)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("dev_unlock_all_settings")
+                                ) {
+                                    Text(text = "UNLOCK ALL", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White)
+                                }
+                            }
                         }
                     }
                 }

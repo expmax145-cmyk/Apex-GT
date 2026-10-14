@@ -16,8 +16,10 @@ import com.example.racing.model.ControlType
 import com.example.racing.model.RaceMode
 import com.example.racing.model.RaceTiming
 import com.example.racing.model.TrackId
+import com.example.racing.engine.TrackMeshBuilder
 import com.example.racing.physics.EnginePowertrain
 import com.example.racing.physics.TireModel
+import com.example.racing.physics.VehicleCollisionSystem
 import com.example.racing.physics.VehiclePhysics
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -241,23 +243,61 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         audioEngine.isWetRoad = _selectedTrack.value == TrackId.NEON_METROPOLIS
 
-        val track = renderer?.trackModel
-        val startPoint = track?.waypoints?.firstOrNull() ?: Vector3f(0f, 0.35f, -30f)
+        val track = renderer?.trackModel ?: TrackMeshBuilder.buildTrack(_selectedTrack.value)
+        val waypoints = track.waypoints
+        val startPoint = waypoints.firstOrNull() ?: Vector3f(0f, 0.35f, -30f)
 
-        playerVehicle.resetAt(Vector3f(startPoint.x + 2.5f, startPoint.y, startPoint.z - 5f), 0f)
+        // Calculate true track forward direction and heading at start line
+        val headingRad: Float
+        val forwardX: Float
+        val forwardZ: Float
+        if (waypoints.size >= 2) {
+            val nextPoint = waypoints[1]
+            val dx = nextPoint.x - startPoint.x
+            val dz = nextPoint.z - startPoint.z
+            headingRad = kotlin.math.atan2(dx, dz)
+            forwardX = kotlin.math.sin(headingRad)
+            forwardZ = kotlin.math.cos(headingRad)
+        } else {
+            headingRad = 0f
+            forwardX = 0f
+            forwardZ = 1f
+        }
+        val rightX = forwardZ
+        val rightZ = -forwardX
 
-        val gridOffsets = listOf(
-            Vector3f(startPoint.x - 2.5f, startPoint.y, startPoint.z + 5f),
-            Vector3f(startPoint.x + 2.5f, startPoint.y, startPoint.z - 20f),
-            Vector3f(startPoint.x - 2.5f, startPoint.y, startPoint.z - 35f)
+        // Staggered grid starting behind the start line, pointing along track direction
+        playerVehicle.resetAt(
+            Vector3f(
+                startPoint.x - forwardX * 10f + rightX * 2.0f,
+                startPoint.y,
+                startPoint.z - forwardZ * 10f + rightZ * 2.0f
+            ),
+            headingRad
         )
 
-        track?.let { t ->
-            for (i in aiOpponents.indices) {
-                val ai = aiOpponents[i]
-                ai.vehicle.resetAt(gridOffsets[i], 0f)
-                aiOpponents[i] = OpponentAIController(ai.vehicle, ai.profile, t.waypoints)
-            }
+        val gridOffsets = listOf(
+            Vector3f(
+                startPoint.x - forwardX * 4f - rightX * 2.0f,
+                startPoint.y,
+                startPoint.z - forwardZ * 4f - rightZ * 2.0f
+            ),
+            Vector3f(
+                startPoint.x - forwardX * 18f + rightX * 2.0f,
+                startPoint.y,
+                startPoint.z - forwardZ * 18f + rightZ * 2.0f
+            ),
+            Vector3f(
+                startPoint.x - forwardX * 25f - rightX * 2.0f,
+                startPoint.y,
+                startPoint.z - forwardZ * 25f - rightZ * 2.0f
+            )
+        )
+
+        for (i in aiOpponents.indices) {
+            val ai = aiOpponents[i]
+            ai.vehicle.resetAt(gridOffsets[i], headingRad)
+            aiOpponents[i] = OpponentAIController(ai.vehicle, ai.profile, waypoints)
         }
 
         raceTiming.currentLap = 1
@@ -288,12 +328,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             finishLineCooldown -= dt
         }
 
-        // Countdown phase
+        // Countdown phase: lock vehicle on starting grid in 1st gear (prevents automatic reverse shifting)
         if (raceTiming.isCountdownActive) {
             raceTiming.countdownSec -= dt
             playerVehicle.throttle = 0f
             playerVehicle.brake = 1f
-            playerVehicle.update(dt)
+            playerVehicle.forwardVelocity = 0f
+            playerVehicle.lateralVelocity = 0f
+            playerVehicle.yawRate = 0f
+            playerVehicle.reverseHoldTimer = 0f
+            playerVehicle.powertrain.currentGear = 2 // Lock 1st gear
+            playerVehicle.powertrain.currentRpm = playerVehicle.powertrain.idleRpm
             updateTelemetryState()
             return
         }
@@ -318,69 +363,30 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             ai.update(dt, playerVehicle.position, otherAiPositions)
         }
 
-        // 1. Car-to-Car Soft Collisions (Player + AIs)
+        // 1. Physical Vehicle-to-Vehicle Collisions (OBB SAT & Impulse Response)
         val allVehicles = mutableListOf<VehiclePhysics>().apply {
             add(playerVehicle)
             addAll(aiOpponents.map { it.vehicle })
         }
-
-        for (i in 0 until allVehicles.size) {
-            for (j in i + 1 until allVehicles.size) {
-                val v1 = allVehicles[i]
-                val v2 = allVehicles[j]
-                val dx = v1.position.x - v2.position.x
-                val dz = v1.position.z - v2.position.z
-                val distSq = dx * dx + dz * dz
-                val minDist = 3.2f
-                if (distSq < minDist * minDist && distSq > 0.001f) {
-                    val dist = kotlin.math.sqrt(distSq)
-                    val overlap = minDist - dist
-                    val nx = dx / dist
-                    val nz = dz / dist
-
-                    v1.position.x += nx * overlap * 0.5f
-                    v1.position.z += nz * overlap * 0.5f
-                    v2.position.x -= nx * overlap * 0.5f
-                    v2.position.z -= nz * overlap * 0.5f
-
-                    val v1x = v1.forwardVelocity * kotlin.math.sin(v1.headingAngleRad)
-                    val v1z = v1.forwardVelocity * kotlin.math.cos(v1.headingAngleRad)
-                    val v2x = v2.forwardVelocity * kotlin.math.sin(v2.headingAngleRad)
-                    val v2z = v2.forwardVelocity * kotlin.math.cos(v2.headingAngleRad)
-
-                    val relVelX = v1x - v2x
-                    val relVelZ = v1z - v2z
-                    val impactMag = kotlin.math.sqrt((relVelX * relVelX + relVelZ * relVelZ).toDouble()).toFloat()
-                    if (impactMag > 2.0f) {
-                        audioEngine.triggerCollision((impactMag / 14f).coerceIn(0.4f, 1.4f))
-                    }
-                }
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = allVehicles,
+            playerVehicle = playerVehicle,
+            particleSystem = renderer?.particleSystem,
+            onCollisionImpact = { intensity ->
+                audioEngine.triggerCollision(intensity)
             }
-        }
+        )
 
         // 2. Barrier Collision Audio Feedback
         if (playerVehicle.hasCollidedBarrier && playerVehicle.speedKmh > 12f) {
             audioEngine.triggerCollision((playerVehicle.speedKmh / 55f).coerceIn(0.4f, 1.3f))
         }
 
-        // 3. Rumble Strip / Kerb Audio Detection
+        // 3. Rumble Strip / Kerb Audio Detection (triggers on outer road edges, never on the center lane)
         var onKerb = false
-        var playerWpIdx = 0
-        if (waypoints.isNotEmpty()) {
-            var bestDistSq = Float.MAX_VALUE
-            for (idx in waypoints.indices) {
-                val wp = waypoints[idx]
-                val dSq = (playerVehicle.position.x - wp.x) * (playerVehicle.position.x - wp.x) +
-                        (playerVehicle.position.z - wp.z) * (playerVehicle.position.z - wp.z)
-                if (dSq < bestDistSq) {
-                    bestDistSq = dSq
-                    playerWpIdx = idx
-                }
-            }
-            if (playerVehicle.speedKmh > 18f) {
-                val distToCenter = kotlin.math.sqrt(bestDistSq)
-                onKerb = distToCenter in 5.6f..7.8f
-            }
+        if (waypoints.isNotEmpty() && playerVehicle.speedKmh > 18f && !playerVehicle.isOffRoad) {
+            val roadHalfWidth = 7.0f
+            onKerb = playerVehicle.trackLateralDistance in (roadHalfWidth - 1.6f)..roadHalfWidth
         }
         audioEngine.isOnKerb = onKerb
 
@@ -774,6 +780,25 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleMute(muted: Boolean) {
         dataManager.soundMuted = muted
         audioEngine.isMuted = muted
+    }
+
+    // =============================================================================================
+    // DEVELOPMENT & DEBUG MODE
+    // =============================================================================================
+    fun grantDevelopmentFunds(amount: Int = 500000) {
+        dataManager.credits += amount
+        _playerCredits.value = dataManager.credits
+    }
+
+    fun setUnlimitedFunds() {
+        dataManager.credits = 9999999
+        _playerCredits.value = dataManager.credits
+    }
+
+    fun unlockAllCarsForDevelopment() {
+        val allIds = CarDefinition.ALL_CARS.map { it.id }.toSet()
+        dataManager.unlockedCars = allIds
+        _unlockedCarIds.value = allIds
     }
 
     var isGamePaused: Boolean = false

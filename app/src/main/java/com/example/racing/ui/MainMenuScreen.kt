@@ -55,7 +55,7 @@ fun MainMenuScreen(
     val selectedCar by viewModel.selectedCar.collectAsState()
     val selectedTrack by viewModel.selectedTrack.collectAsState()
 
-    Box(
+    androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(
@@ -63,9 +63,18 @@ fun MainMenuScreen(
                     listOf(Color(0xCC080C14), Color(0xF205080E))
                 )
             )
-            .padding(horizontal = 22.dp, vertical = 14.dp)
     ) {
-        // Top Header
+        val isCompact = maxWidth < 700.dp
+        val isShort = maxHeight < 390.dp
+        val hPad = if (isCompact) 12.dp else 22.dp
+        val vPad = if (isShort) 8.dp else 14.dp
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = hPad, vertical = vPad)
+        ) {
+            // Top Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -82,7 +91,7 @@ fun MainMenuScreen(
                     Text(
                         text = "APEX GT",
                         color = Color.White,
-                        fontSize = 28.sp,
+                        fontSize = if (isCompact) 22.sp else 28.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 2.sp
                     )
@@ -110,15 +119,16 @@ fun MainMenuScreen(
                 )
             }
 
-            // Top Right: Credits & Settings Button
+            // Top Right: Credits & Settings Button + Dev Cash Button
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     color = Color(0xFF131A26),
                     shape = RoundedCornerShape(20.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFD700))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFD700)),
+                    modifier = Modifier.clickable { viewModel.grantDevelopmentFunds() }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -127,18 +137,38 @@ fun MainMenuScreen(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Black
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "%,d".format(credits),
                             color = Color.White,
-                            fontSize = 16.sp,
+                            fontSize = if (isCompact) 14.sp else 16.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Development Cash Injector Button
+                Button(
+                    onClick = { viewModel.grantDevelopmentFunds() },
+                    modifier = Modifier
+                        .testTag("dev_add_funds_main_button")
+                        .height(34.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                    shape = RoundedCornerShape(17.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "+$500K",
+                        color = Color(0xFF060910),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
 
                 IconButton(
                     onClick = { viewModel.navigateTo(GameScreen.SETTINGS) },
@@ -160,8 +190,8 @@ fun MainMenuScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 62.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
+                .padding(top = if (isShort) 48.dp else 62.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (isCompact) 10.dp else 18.dp)
         ) {
             // Left Column: Track Selector & Mode Cards
             Column(
@@ -341,6 +371,7 @@ fun MainMenuScreen(
             }
         }
     }
+}
 }
 
 @Composable

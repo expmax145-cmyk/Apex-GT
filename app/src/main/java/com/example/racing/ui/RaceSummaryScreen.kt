@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
@@ -75,10 +78,14 @@ fun RaceSummaryScreen(
             color = Color(0xFF101522),
             shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(2.dp, badgeColor),
-            modifier = Modifier.width(520.dp)
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth(0.92f)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Trophy Icon and Title

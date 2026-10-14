@@ -94,7 +94,7 @@ fun RacingHud(
                     if (event != null && event.values.size >= 2) {
                         // Landscape orientation: Y-axis represents tilt
                         val tiltY = event.values[1]
-                        tiltSteerValue = (-tiltY / 4.8f).coerceIn(-1.0f, 1.0f)
+                        tiltSteerValue = (tiltY / 4.8f).coerceIn(-1.0f, 1.0f)
                     }
                 }
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -113,18 +113,18 @@ fun RacingHud(
 
     var touchSteerSmooth by remember { mutableFloatStateOf(0f) }
 
+    // Determine steer input based on active control type
     val touchTarget = when {
-        isLeftPressed && !isRightPressed -> -1.0f
-        isRightPressed && !isLeftPressed -> 1.0f
+        isLeftPressed && !isRightPressed -> 1.0f
+        isRightPressed && !isLeftPressed -> -1.0f
         else -> 0.0f
     }
     val rampSpeed = if (touchTarget == 0f) 0.35f else 0.28f
     touchSteerSmooth += (touchTarget - touchSteerSmooth) * rampSpeed
     if (abs(touchSteerSmooth) < 0.01f && touchTarget == 0f) touchSteerSmooth = 0f
 
-    // Determine steer input based on active control type
     val steerValue = when (controlType) {
-        ControlType.VIRTUAL_WHEEL -> (wheelSteerAngle / 60f).coerceIn(-1.0f, 1.0f)
+        ControlType.VIRTUAL_WHEEL -> (-wheelSteerAngle / 60f).coerceIn(-1.0f, 1.0f)
         ControlType.TILT_GYRO -> tiltSteerValue
         ControlType.TOUCH_BUTTONS -> touchSteerSmooth
     }
@@ -135,13 +135,34 @@ fun RacingHud(
     viewModel.setHandbrake(isHandbrakePressed)
     viewModel.triggerBoost(isBoostPressed)
 
-    Box(modifier = modifier.fillMaxSize()) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isCompact = maxWidth < 700.dp
+        val isNarrow = maxWidth < 620.dp
+        val isShort = maxHeight < 380.dp
+
+        val hPadding = if (isNarrow) 8.dp else if (isCompact) 14.dp else 20.dp
+        val bottomPadding = if (isShort) 8.dp else 16.dp
+
+        // Adaptive pedal dimensions
+        val pedalSpacing = if (isNarrow) 6.dp else if (isCompact) 8.dp else 12.dp
+        val gasW = if (isNarrow) 58.dp else if (isCompact) 66.dp else 76.dp
+        val gasH = if (isShort) 76.dp else if (isCompact) 84.dp else 98.dp
+        val brakeW = if (isNarrow) 52.dp else if (isCompact) 60.dp else 68.dp
+        val brakeH = if (isShort) 66.dp else if (isCompact) 74.dp else 85.dp
+        val nitroW = if (isNarrow) 48.dp else if (isCompact) 56.dp else 64.dp
+        val nitroH = if (isShort) 50.dp else if (isCompact) 58.dp else 66.dp
+        val eBrakeW = if (isNarrow) 48.dp else if (isCompact) 54.dp else 62.dp
+        val eBrakeH = if (isShort) 48.dp else if (isCompact) 50.dp else 56.dp
+
+        val steerBtnSize = if (isNarrow) 56.dp else if (isCompact) 64.dp else 72.dp
+        val steerSpacing = if (isNarrow) 8.dp else if (isCompact) 12.dp else 16.dp
+        val wheelSize = if (isNarrow) 85.dp else if (isCompact) 95.dp else 105.dp
 
         // 1. Top Bar: Minimap, Timing, Sector Splits & Camera
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = hPadding, vertical = if (isShort) 6.dp else 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
@@ -355,11 +376,11 @@ fun RacingHud(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 24.dp, bottom = 18.dp)
+                .padding(start = hPadding, bottom = bottomPadding)
         ) {
             when (controlType) {
                 ControlType.TOUCH_BUTTONS -> {
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(steerSpacing)) {
                         PedalButton(
                             label = "◀",
                             color = Color(0xFF242A38),
@@ -367,7 +388,7 @@ fun RacingHud(
                             onPressChange = { isLeftPressed = it },
                             modifier = Modifier
                                 .testTag("steer_left_button")
-                                .size(72.dp)
+                                .size(steerBtnSize)
                         )
 
                         PedalButton(
@@ -377,7 +398,7 @@ fun RacingHud(
                             onPressChange = { isRightPressed = it },
                             modifier = Modifier
                                 .testTag("steer_right_button")
-                                .size(72.dp)
+                                .size(steerBtnSize)
                         )
                     }
                 }
@@ -387,7 +408,7 @@ fun RacingHud(
                         onAngleChange = { wheelSteerAngle = it },
                         modifier = Modifier
                             .testTag("virtual_wheel_control")
-                            .size(105.dp)
+                            .size(wheelSize)
                     )
                 }
                 ControlType.TILT_GYRO -> {
@@ -395,7 +416,7 @@ fun RacingHud(
                         steerValue = tiltSteerValue,
                         modifier = Modifier
                             .testTag("tilt_gyro_indicator")
-                            .size(width = 110.dp, height = 50.dp)
+                            .size(width = if (isNarrow) 90.dp else 110.dp, height = if (isShort) 42.dp else 50.dp)
                     )
                 }
             }
@@ -405,8 +426,8 @@ fun RacingHud(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 24.dp, bottom = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(end = hPadding, bottom = bottomPadding),
+            horizontalArrangement = Arrangement.spacedBy(pedalSpacing),
             verticalAlignment = Alignment.Bottom
         ) {
             PedalButton(
@@ -416,7 +437,7 @@ fun RacingHud(
                 onPressChange = { isHandbrakePressed = it },
                 modifier = Modifier
                     .testTag("handbrake_button")
-                    .size(width = 62.dp, height = 56.dp)
+                    .size(width = eBrakeW, height = eBrakeH)
             )
 
             PedalButton(
@@ -426,7 +447,7 @@ fun RacingHud(
                 onPressChange = { isBoostPressed = it },
                 modifier = Modifier
                     .testTag("nitro_button")
-                    .size(width = 64.dp, height = 66.dp)
+                    .size(width = nitroW, height = nitroH)
             )
 
             PedalButton(
@@ -436,7 +457,7 @@ fun RacingHud(
                 onPressChange = { isBrakePressed = it },
                 modifier = Modifier
                     .testTag("brake_pedal")
-                    .size(width = 68.dp, height = 85.dp)
+                    .size(width = brakeW, height = brakeH)
             )
 
             PedalButton(
@@ -446,7 +467,7 @@ fun RacingHud(
                 onPressChange = { isGasPressed = it },
                 modifier = Modifier
                     .testTag("gas_pedal")
-                    .size(width = 76.dp, height = 98.dp)
+                    .size(width = gasW, height = gasH)
             )
         }
 
@@ -580,8 +601,8 @@ fun TiltIndicator(
                 drawLine(Color(0x66FFFFFF), Offset(cx, 0f), Offset(cx, size.height), strokeWidth = 2f)
                 // Horizon bar
                 drawLine(Color(0x44FFFFFF), Offset(0f, cy), Offset(size.width, cy), strokeWidth = 1.5f)
-                // Steer Marker
-                val markerX = (cx + steerValue * (cx - 10f)).coerceIn(10f, size.width - 10f)
+                // Steer Marker (moves left for left steer, right for right steer)
+                val markerX = (cx - steerValue * (cx - 10f)).coerceIn(10f, size.width - 10f)
                 drawCircle(color = Color(0xFFFFD700), radius = 5f, center = Offset(markerX, cy))
             }
         }

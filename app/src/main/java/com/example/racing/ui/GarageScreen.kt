@@ -69,13 +69,16 @@ fun GarageScreen(
 
     val isUnlocked = unlockedIds.contains(selectedCar.id)
 
-    Box(modifier = modifier.fillMaxSize()) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isCompact = maxWidth < 700.dp
+        val isShort = maxHeight < 390.dp
+        val horizontalPad = if (isCompact) 12.dp else 20.dp
 
         // 1. Top Bar: Back button, Title & Credits balance
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .padding(horizontal = horizontalPad, vertical = if (isShort) 8.dp else 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -94,43 +97,66 @@ fun GarageScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Column {
                     Text(
                         text = "APEX 3D SHOWROOM",
                         color = Color.White,
-                        fontSize = 18.sp,
+                        fontSize = if (isCompact) 15.sp else 18.sp,
                         fontWeight = FontWeight.Black
                     )
                     Text(
                         text = "TOUCH & DRAG TO ROTATE VEHICLE",
                         color = Color(0xFF00E5FF),
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
                 }
             }
 
-            // Credits Balance
-            Surface(
-                color = Color(0xCC0E131F),
-                shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFD700))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            // Credits Balance & Dev Cash Button
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = Color(0xCC0E131F),
+                    shape = RoundedCornerShape(20.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFD700)),
+                    modifier = Modifier.clickable { viewModel.grantDevelopmentFunds() }
                 ) {
-                    Text(text = "CR", color = Color(0xFFFFD700), fontSize = 12.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "CR", color = Color(0xFFFFD700), fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "%,d".format(credits),
+                            color = Color.White,
+                            fontSize = if (isCompact) 13.sp else 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Development Currency Injector Button
+                Button(
+                    onClick = { viewModel.grantDevelopmentFunds() },
+                    modifier = Modifier
+                        .testTag("dev_add_funds_button")
+                        .height(34.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                    shape = RoundedCornerShape(17.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                ) {
                     Text(
-                        text = "%,d".format(credits),
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        text = "+$500K DEV",
+                        color = Color(0xFF060910),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
                     )
                 }
             }

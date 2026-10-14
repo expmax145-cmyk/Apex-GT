@@ -14,6 +14,10 @@ class GameDataManager(context: Context) {
         get() = prefs.getInt("credits", 15000)
         set(value) = prefs.edit().putInt("credits", value).apply()
 
+    fun grantDevelopmentCredits(amount: Int = 999999) {
+        credits = amount
+    }
+
     var selectedCarId: String
         get() = prefs.getString("selected_car_id", CarDefinition.ALL_CARS[0].id) ?: CarDefinition.ALL_CARS[0].id
         set(value) = prefs.edit().putString("selected_car_id", value).apply()
