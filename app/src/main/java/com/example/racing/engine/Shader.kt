@@ -195,6 +195,13 @@ class Shader(
             uniform float u_FogNear;
             uniform float u_FogFar;
 
+            // Dynamic Sky and Atmosphere
+            uniform vec3 u_SkyZenithColor;
+            uniform vec3 u_SkyHorizonColor;
+            uniform vec3 u_CloudColor;
+            uniform float u_CloudCoverage;
+            uniform float u_Time;
+
             out vec4 fragColor;
 
             const float PI = 3.14159265359;
@@ -250,9 +257,43 @@ class Shader(
                 vec4 baseColor = u_MaterialColor * v_VertexColor;
                 vec3 albedo = baseColor.rgb;
 
-                // Dedicated unlit rendering path for Panoramic Sky Dome & horizon backdrop
+                // Dedicated dynamic path for Panoramic Sky Dome & horizon backdrop
                 if (u_Roughness >= 0.99 && u_SpecularColor.r == 0.0 && u_SpecularColor.g == 0.0 && u_SpecularColor.b == 0.0 && u_Clearcoat == 0.0) {
-                    vec3 x = max(vec3(0.0), albedo - vec3(0.004));
+                    vec3 skyDir = normalize(v_WorldPos);
+                    float elevation = clamp(skyDir.y, 0.0, 1.0);
+                    // Smooth celestial gradient from horizon to zenith
+                    vec3 skyBase = mix(u_SkyHorizonColor, u_SkyZenithColor, pow(elevation, 0.65));
+
+                    // Sun disc and atmospheric solar halo
+                    vec3 sunDirNorm = normalize(u_SunDirection);
+                    float sunDot = max(dot(skyDir, sunDirNorm), 0.0);
+                    if (sunDirNorm.y > -0.05) {
+                        float sunDisc = pow(sunDot, 480.0) * 2.8;
+                        float sunCorona = pow(sunDot, 18.0) * 0.42;
+                        skyBase += u_SunColor * (sunDisc + sunCorona);
+                    }
+
+                    // Twinkling celestial stars at night (when sun is below horizon)
+                    if (sunDirNorm.y < 0.12 && elevation > 0.08) {
+                        float starCoord = hash21(floor(skyDir.xz / max(elevation, 0.08) * 140.0));
+                        if (starCoord > 0.984 && u_CloudCoverage < 0.75) {
+                            float twinkle = 0.65 + 0.35 * sin(u_Time * 3.5 + starCoord * 80.0);
+                            float nightFade = clamp((0.12 - sunDirNorm.y) / 0.15, 0.0, 1.0);
+                            skyBase += vec3(0.92, 0.95, 1.0) * (starCoord - 0.984) * 55.0 * twinkle * nightFade;
+                        }
+                    }
+
+                    // Procedural soft cloud coverage drifting across sky dome
+                    if (u_CloudCoverage > 0.04) {
+                        vec2 cloudUV = (skyDir.xz / max(elevation, 0.12)) * 3.2 + vec2(u_Time * 0.008, u_Time * 0.004);
+                        float c1 = hash21(floor(cloudUV * 4.0));
+                        float c2 = hash21(floor(cloudUV * 8.0 + vec2(1.7, 3.2)));
+                        float cloudNoise = c1 * 0.65 + c2 * 0.35;
+                        float cloudDensity = smoothstep(1.0 - u_CloudCoverage * 0.75, 1.0, cloudNoise);
+                        skyBase = mix(skyBase, u_CloudColor, cloudDensity * clamp(u_CloudCoverage, 0.0, 0.92));
+                    }
+
+                    vec3 x = max(vec3(0.0), skyBase - vec3(0.004));
                     vec3 toneMapped = (x * (6.2 * x + 0.5)) / (x * (6.2 * x + 1.7) + 0.06);
                     fragColor = vec4(toneMapped, baseColor.a);
                     return;
@@ -330,12 +371,16 @@ class Shader(
                 // --- 6. Wet Road Reflection & Anisotropic Horizon Sheen ---
                 vec3 wetReflection = vec3(0.0);
                 if (u_WetRoadActive > 0.05 && N.y > 0.55) {
+                    // Asphalt moisture light absorption: darkens base asphalt without muddying bright painted lines
+                    if (u_Roughness > 0.35 && u_Metallic < 0.2) {
+                        albedo *= mix(vec3(1.0), vec3(0.68, 0.68, 0.70), u_WetRoadActive * 0.65);
+                    }
                     // Strong grazing Fresnel on wet mirror surface
-                    float wetF = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.5);
+                    float wetF = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.2);
                     // Puddle micro-surface variation
-                    float puddleNoise = hash21(floor(v_WorldPos.xz * 1.5)) * 0.3 + 0.7;
-                    vec3 puddleEnv = mix(ambientColor * 1.5, u_SunColor * 1.2, 0.6);
-                    wetReflection = puddleEnv * (wetF * 1.8 + 0.25) * u_WetRoadActive * puddleNoise;
+                    float puddleNoise = hash21(floor(v_WorldPos.xz * 1.5)) * 0.28 + 0.72;
+                    vec3 puddleEnv = mix(ambientColor * 1.6, u_SunColor * 1.15, 0.55);
+                    wetReflection = puddleEnv * (wetF * 1.65 + 0.22) * u_WetRoadActive * puddleNoise;
                 }
 
                 // --- 7. LED Headlight, Taillight & Neon Emissive Glow ---

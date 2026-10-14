@@ -51,6 +51,8 @@ fun SettingsScreen(
 ) {
     val controlType by viewModel.controlType.collectAsState()
     val graphicsPreset by viewModel.graphicsPreset.collectAsState()
+    val timeOfDay by viewModel.timeOfDay.collectAsState()
+    val weatherCondition by viewModel.weatherCondition.collectAsState()
 
     var volumeVal by remember { mutableFloatStateOf(viewModel.dataManager.soundVolume) }
     var steerSens by remember { mutableFloatStateOf(viewModel.dataManager.steerSensitivity) }
@@ -140,6 +142,111 @@ fun SettingsScreen(
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Time of Day Selector
+                    Surface(
+                        color = Color(0xFF101522),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "TIME OF DAY & SUN PATH",
+                                color = Color(0xFF78909C),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(
+                                    com.example.racing.model.TimeOfDay.DYNAMIC to "DYNAMIC",
+                                    com.example.racing.model.TimeOfDay.DAY to "DAY",
+                                    com.example.racing.model.TimeOfDay.AFTERNOON to "AFT",
+                                    com.example.racing.model.TimeOfDay.SUNSET to "SUNSET",
+                                    com.example.racing.model.TimeOfDay.NIGHT to "NIGHT"
+                                ).forEach { (tod, label) ->
+                                    val isSelected = timeOfDay == tod
+                                    Surface(
+                                        color = if (isSelected) Color(0xFF1E2638) else Color(0xFF0A0E17),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (isSelected) Color(0xFFFF9100) else Color(0x22FFFFFF)
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { viewModel.setTimeOfDay(tod) }
+                                            .testTag("settings_time_of_day_${tod.name.lowercase()}")
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) Color(0xFFFF9100) else Color(0xFF78909C),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Weather Condition Selector
+                    Surface(
+                        color = Color(0xFF101522),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "ATMOSPHERIC WEATHER & PRECIPITATION",
+                                color = Color(0xFF78909C),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(
+                                    com.example.racing.model.WeatherCondition.CLEAR to "CLEAR",
+                                    com.example.racing.model.WeatherCondition.OVERCAST to "OVERCAST",
+                                    com.example.racing.model.WeatherCondition.LIGHT_RAIN to "LT RAIN",
+                                    com.example.racing.model.WeatherCondition.HEAVY_RAIN to "HVY RAIN"
+                                ).forEach { (weather, label) ->
+                                    val isSelected = weatherCondition == weather
+                                    Surface(
+                                        color = if (isSelected) Color(0xFF1E2638) else Color(0xFF0A0E17),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (isSelected) Color(0xFF00E5FF) else Color(0x22FFFFFF)
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { viewModel.setWeather(weather) }
+                                            .testTag("settings_weather_${weather.name.lowercase()}")
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) Color(0xFF00E5FF) else Color(0xFF78909C),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                         )
                                     }

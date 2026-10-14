@@ -46,6 +46,22 @@ class GameDataManager(context: Context) {
         get() = prefs.getString("graphics_preset", "HIGH") ?: "HIGH"
         set(value) = prefs.edit().putString("graphics_preset", value).apply()
 
+    var timeOfDay: com.example.racing.model.TimeOfDay
+        get() = try {
+            com.example.racing.model.TimeOfDay.valueOf(prefs.getString("time_of_day", com.example.racing.model.TimeOfDay.DYNAMIC.name) ?: com.example.racing.model.TimeOfDay.DYNAMIC.name)
+        } catch (_: Exception) {
+            com.example.racing.model.TimeOfDay.DYNAMIC
+        }
+        set(value) = prefs.edit().putString("time_of_day", value.name).apply()
+
+    var weatherCondition: com.example.racing.model.WeatherCondition
+        get() = try {
+            com.example.racing.model.WeatherCondition.valueOf(prefs.getString("weather_condition", com.example.racing.model.WeatherCondition.CLEAR.name) ?: com.example.racing.model.WeatherCondition.CLEAR.name)
+        } catch (_: Exception) {
+            com.example.racing.model.WeatherCondition.CLEAR
+        }
+        set(value) = prefs.edit().putString("weather_condition", value.name).apply()
+
     var soundVolume: Float
         get() = prefs.getFloat("sound_volume", 0.75f)
         set(value) = prefs.edit().putFloat("sound_volume", value).apply()

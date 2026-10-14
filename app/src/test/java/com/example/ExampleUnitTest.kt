@@ -838,6 +838,132 @@ class ExampleUnitTest {
         assertTrue("Glass curtain wall must have low roughness", glass.roughness <= 0.10f)
         assertTrue("Glass curtain wall must have high clearcoat reflection", glass.clearcoat >= 0.90f)
     }
+
+    // =============================================================================================
+    // PHASE 10: REALISTIC LIGHTING, WEATHER, DYNAMIC SKIES & DAY/NIGHT SYSTEMS
+    // =============================================================================================
+
+    @Test
+    fun testPhase10TimeOfDaySunProgression() {
+        val controller = com.example.racing.model.EnvironmentController()
+
+        // 1. Day Mode Verification
+        controller.selectedTimeOfDay = com.example.racing.model.TimeOfDay.DAY
+        controller.selectedWeather = com.example.racing.model.WeatherCondition.CLEAR
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val dayState = controller.currentState
+
+        assertFalse("Day mode should not be night", dayState.isNight)
+        assertTrue("Day sun elevation must be high above horizon", dayState.sunDirection[1] > 0.8f)
+        assertTrue("Day sun color must be bright", dayState.sunColor[0] >= 1.0f)
+        assertTrue("Day sky zenith must be rich blue", dayState.skyZenithColor[2] > dayState.skyZenithColor[0])
+
+        // 2. Sunset Mode Verification
+        controller.selectedTimeOfDay = com.example.racing.model.TimeOfDay.SUNSET
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val sunsetState = controller.currentState
+
+        assertFalse("Sunset mode should not be night", sunsetState.isNight)
+        assertTrue("Sunset sun color must have strong warm amber/red tone", sunsetState.sunColor[0] > sunsetState.sunColor[2])
+        assertTrue("Sunset horizon must have warm fiery/salmon tint", sunsetState.skyHorizonColor[0] > sunsetState.skyHorizonColor[2])
+
+        // 3. Night Mode Verification
+        controller.selectedTimeOfDay = com.example.racing.model.TimeOfDay.NIGHT
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val nightState = controller.currentState
+
+        assertTrue("Night mode must set isNight flag", nightState.isNight)
+        assertTrue("Night sky ambient must preserve visibility for safe racing", nightState.skyAmbient[2] >= 0.05f)
+        assertTrue("Night ground ambient must preserve track edge visibility", nightState.groundAmbient[0] >= 0.04f)
+        assertTrue("Night headlights must be active for driving visibility", nightState.headlightsActive)
+        assertTrue("Night headlight intensity must be strong on HIGH quality", nightState.headlightIntensity >= 1.8f)
+
+        // 4. Dynamic Time Progression Verification
+        controller.selectedTimeOfDay = com.example.racing.model.TimeOfDay.DYNAMIC
+        controller.dynamicHour = 12.0f
+        controller.update(10.0f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        assertTrue("Dynamic time must progress forward with delta time", controller.dynamicHour > 12.0f)
+    }
+
+    @Test
+    fun testPhase10WeatherConditionsAndAtmosphere() {
+        val controller = com.example.racing.model.EnvironmentController()
+        controller.selectedTimeOfDay = com.example.racing.model.TimeOfDay.DAY
+
+        // 1. Clear Weather
+        controller.selectedWeather = com.example.racing.model.WeatherCondition.CLEAR
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val clearState = controller.currentState
+        assertEquals("Clear weather must have 0 rain intensity", 0.0f, clearState.rainIntensity, 0.001f)
+        assertTrue("Clear weather cloud coverage must be low", clearState.cloudCoverage <= 0.20f)
+        assertEquals("Clear GP track must have dry asphalt", 0.0f, clearState.wetRoadActive, 0.001f)
+
+        // 2. Overcast Weather
+        controller.selectedWeather = com.example.racing.model.WeatherCondition.OVERCAST
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val overcastState = controller.currentState
+        assertTrue("Overcast weather must have dense cloud coverage", overcastState.cloudCoverage >= 0.80f)
+        assertTrue("Overcast sun direct light must be softened and diffuse", overcastState.sunColor[0] < clearState.sunColor[0])
+        assertTrue("Overcast fog range must be closer than clear day", overcastState.fogFar < clearState.fogFar)
+
+        // 3. Light Rain Weather
+        controller.selectedWeather = com.example.racing.model.WeatherCondition.LIGHT_RAIN
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val lightRainState = controller.currentState
+        assertTrue("Light rain must have moderate rain intensity", lightRainState.rainIntensity in 0.3f..0.6f)
+        assertTrue("Light rain must activate damp wet asphalt sheen", lightRainState.wetRoadActive >= 0.70f)
+        assertTrue("Light rain must automatically activate headlights", lightRainState.headlightsActive)
+
+        // 4. Heavy Rain Weather
+        controller.selectedWeather = com.example.racing.model.WeatherCondition.HEAVY_RAIN
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val heavyRainState = controller.currentState
+        assertEquals("Heavy rain must have maximum rain intensity", 1.0f, heavyRainState.rainIntensity, 0.001f)
+        assertEquals("Heavy rain must have maximum wet road sheen", 1.0f, heavyRainState.wetRoadActive, 0.001f)
+        assertTrue("Heavy rain must have dense cloud coverage", heavyRainState.cloudCoverage >= 0.95f)
+        assertTrue("Heavy rain fog must reduce distant visibility", heavyRainState.fogFar <= 400f)
+    }
+
+    @Test
+    fun testPhase10RainAndSprayParticleEmissions() {
+        val ps = com.example.racing.engine.ParticleSystem(480)
+        val camPos = com.example.racing.engine.Vector3f(0f, 2f, 0f)
+
+        // 1. Rain Emission
+        ps.emitRain(camPos, count = 20, isHeavy = true)
+        // Verify particles update without crashing
+        ps.update(0.016f)
+
+        // 2. Tire Spray Emission
+        ps.emitTireSpray(x = 1.0f, y = 0.5f, z = -2.0f, intensity = 1.0f)
+        ps.update(0.016f)
+
+        // 3. Draw call without null pointers
+        val vp = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(vp, 0)
+        ps.draw(vp, camPos)
+
+        ps.release()
+    }
+
+    @Test
+    fun testPhase10GraphicsQualityScaling() {
+        val controller = com.example.racing.model.EnvironmentController()
+        controller.selectedTimeOfDay = com.example.racing.model.TimeOfDay.DAY
+        controller.selectedWeather = com.example.racing.model.WeatherCondition.HEAVY_RAIN
+
+        // High quality: full wet sheen and headlights
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "HIGH")
+        val highState = controller.currentState
+        assertEquals("High quality should have 100% wetness", 1.0f, highState.wetRoadActive, 0.001f)
+        assertTrue("High quality should have full headlight intensity", highState.headlightIntensity >= 1.8f)
+
+        // Low quality: modulated wetness and disabled headlights to save mobile GPU cycles
+        controller.update(0.016f, com.example.racing.model.TrackId.GRAND_PRIX, "LOW")
+        val lowState = controller.currentState
+        assertTrue("Low quality must reduce wet road shader complexity", lowState.wetRoadActive < highState.wetRoadActive)
+        assertFalse("Low quality disables headlight spotlight to guarantee high mobile frame rates", lowState.headlightsActive)
+    }
 }
 
 

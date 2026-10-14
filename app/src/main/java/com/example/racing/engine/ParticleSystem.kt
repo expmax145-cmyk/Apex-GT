@@ -7,9 +7,10 @@ import java.nio.FloatBuffer
 import kotlin.random.Random
 
 /**
- * High-performance GPU particle system for tire smoke, gravel dust, and exhaust flame pops.
+ * High-performance GPU particle system for tire smoke, gravel dust, exhaust flames,
+ * collision sparks, rain precipitation streaks, and wet-road tire water spray.
  */
-class ParticleSystem(val maxParticles: Int = 160) {
+class ParticleSystem(val maxParticles: Int = 480) {
 
     private class Particle {
         var x = 0f
@@ -19,12 +20,15 @@ class ParticleSystem(val maxParticles: Int = 160) {
         var vy = 0f
         var vz = 0f
         var size = 0.4f
+        var length = 0f
         var r = 1f
         var g = 1f
         var b = 1f
         var alpha = 0.6f
         var age = 0f
         var maxAge = 0.6f
+        var isRain = false
+        var isSpray = false
         var active = false
     }
 
@@ -42,8 +46,14 @@ class ParticleSystem(val maxParticles: Int = 160) {
     private var vboId = 0
 
     init {
-        initShader()
-        initBuffers()
+        try {
+            initShader()
+            initBuffers()
+        } catch (_: Throwable) {
+            programId = 0
+            vaoId = 0
+            vboId = 0
+        }
     }
 
     private fun initShader() {
@@ -71,7 +81,7 @@ class ParticleSystem(val maxParticles: Int = 160) {
             out vec4 fragColor;
 
             void main() {
-                // Radial soft circle puff with compliant ascending smoothstep
+                // Soft billboard falloff
                 float dist = length(v_UV - vec2(0.5));
                 if (dist > 0.5) discard;
                 float falloff = 1.0 - smoothstep(0.0, 0.5, dist);
@@ -138,8 +148,11 @@ class ParticleSystem(val maxParticles: Int = 160) {
         p.vz = (Random.nextFloat() - 0.5f) * 0.8f
 
         p.size = 0.35f + Random.nextFloat() * 0.2f
+        p.length = 0f
         p.age = 0f
         p.maxAge = 0.55f + Random.nextFloat() * 0.25f
+        p.isRain = false
+        p.isSpray = false
         p.active = true
 
         if (isOffRoad) {
@@ -170,8 +183,11 @@ class ParticleSystem(val maxParticles: Int = 160) {
         p.vz = -1.2f - Random.nextFloat() * 1.5f
 
         p.size = 0.25f
+        p.length = 0f
         p.age = 0f
         p.maxAge = 0.18f // Quick pop flash
+        p.isRain = false
+        p.isSpray = false
         p.active = true
 
         p.r = 1.0f
@@ -195,14 +211,84 @@ class ParticleSystem(val maxParticles: Int = 160) {
             p.vz = (Random.nextFloat() - 0.5f) * 3.2f * intensity
 
             p.size = 0.10f + Random.nextFloat() * 0.08f
+            p.length = 0f
             p.age = 0f
             p.maxAge = 0.18f + Random.nextFloat() * 0.14f
+            p.isRain = false
+            p.isSpray = false
             p.active = true
 
             p.r = 1.0f
             p.g = 0.82f + Random.nextFloat() * 0.18f
             p.b = 0.20f
             p.alpha = 0.95f
+        }
+    }
+
+    /**
+     * Spawns falling rain streaks around the camera.
+     */
+    fun emitRain(camPos: Vector3f, count: Int, isHeavy: Boolean) {
+        for (i in 0 until count) {
+            val p = particles[nextIdx]
+            nextIdx = (nextIdx + 1) % maxParticles
+
+            val angle = Random.nextFloat() * 2f * kotlin.math.PI.toFloat()
+            val radius = 1.0f + Random.nextFloat() * 22.0f
+            p.x = camPos.x + kotlin.math.cos(angle) * radius
+            p.y = camPos.y + 1.0f + Random.nextFloat() * 14.0f
+            p.z = camPos.z + kotlin.math.sin(angle) * radius
+
+            p.vx = -1.2f - Random.nextFloat() * 0.8f // Wind drift
+            p.vy = -26.0f - Random.nextFloat() * 12.0f // Fast downward rainfall
+            p.vz = -0.8f - Random.nextFloat() * 0.6f
+
+            p.size = 0.04f
+            p.length = if (isHeavy) 0.65f else 0.45f
+            p.age = 0f
+            p.maxAge = 0.42f
+            p.isRain = true
+            p.isSpray = false
+            p.active = true
+
+            // Translucent silver-cyan water droplet
+            p.r = 0.78f
+            p.g = 0.86f
+            p.b = 0.96f
+            p.alpha = if (isHeavy) 0.42f else 0.28f
+        }
+    }
+
+    /**
+     * Spawns fine water spray / mist behind tires on wet asphalt.
+     */
+    fun emitTireSpray(x: Float, y: Float, z: Float, intensity: Float = 1.0f) {
+        val count = (2 + (intensity * 3f).toInt()).coerceIn(1, 4)
+        for (i in 0 until count) {
+            val p = particles[nextIdx]
+            nextIdx = (nextIdx + 1) % maxParticles
+
+            p.x = x + (Random.nextFloat() - 0.5f) * 0.25f
+            p.y = y + 0.08f + Random.nextFloat() * 0.12f
+            p.z = z + (Random.nextFloat() - 0.5f) * 0.25f
+
+            p.vx = (Random.nextFloat() - 0.5f) * 0.9f
+            p.vy = 0.4f + Random.nextFloat() * 0.6f * intensity
+            p.vz = (Random.nextFloat() - 0.5f) * 0.9f
+
+            p.size = 0.28f + Random.nextFloat() * 0.18f
+            p.length = 0f
+            p.age = 0f
+            p.maxAge = 0.38f + Random.nextFloat() * 0.20f
+            p.isRain = false
+            p.isSpray = true
+            p.active = true
+
+            // Misty grey-white water spray
+            p.r = 0.80f
+            p.g = 0.85f
+            p.b = 0.92f
+            p.alpha = 0.35f * intensity
         }
     }
 
@@ -219,11 +305,20 @@ class ParticleSystem(val maxParticles: Int = 160) {
             p.y += p.vy * dt
             p.z += p.vz * dt
 
-            // Smoke expands and decelerates
-            p.size += dt * 1.2f
-            p.vx *= 0.94f
-            p.vy *= 0.96f
-            p.vz *= 0.94f
+            if (p.isRain) {
+                // Rain falls straight without expansion
+            } else if (p.isSpray) {
+                p.size += dt * 0.9f
+                p.vx *= 0.96f
+                p.vy *= 0.96f
+                p.vz *= 0.96f
+            } else {
+                // Smoke / exhaust / sparks expands and decelerates
+                p.size += dt * 1.2f
+                p.vx *= 0.94f
+                p.vy *= 0.96f
+                p.vz *= 0.94f
+            }
         }
     }
 
@@ -238,16 +333,29 @@ class ParticleSystem(val maxParticles: Int = 160) {
 
             val progress = p.age / p.maxAge
             val currentAlpha = p.alpha * (1f - progress)
-            val halfS = p.size * 0.5f
 
             // Vector from camera to particle
             val dx = p.x - camPos.x
             val dz = p.z - camPos.z
             val len = kotlin.math.sqrt(dx * dx + dz * dz).coerceAtLeast(0.001f)
-            // Camera right vector in XZ plane
-            val rX = -dz / len * halfS
-            val rZ = dx / len * halfS
-            val uY = halfS
+
+            val rX: Float
+            val rZ: Float
+            val uY: Float
+
+            if (p.isRain) {
+                // Vertical elongated rain streak
+                val halfW = p.size * 0.5f
+                rX = -dz / len * halfW
+                rZ = dx / len * halfW
+                uY = p.length * 0.5f
+            } else {
+                val halfS = p.size * 0.5f
+                // Camera right vector in XZ plane
+                rX = -dz / len * halfS
+                rZ = dx / len * halfS
+                uY = halfS
+            }
 
             // Quad vertices: 2 triangles (0,1,2 and 0,2,3) -> 6 vertices
             // V0: bottom-left
@@ -300,16 +408,22 @@ class ParticleSystem(val maxParticles: Int = 160) {
     }
 
     fun release() {
-        if (programId != 0) {
-            GLES30.glDeleteProgram(programId)
+        try {
+            if (programId != 0) {
+                GLES30.glDeleteProgram(programId)
+                programId = 0
+            }
+            if (vaoId != 0) {
+                GLES30.glDeleteVertexArrays(1, intArrayOf(vaoId), 0)
+                vaoId = 0
+            }
+            if (vboId != 0) {
+                GLES30.glDeleteBuffers(1, intArrayOf(vboId), 0)
+                vboId = 0
+            }
+        } catch (_: Throwable) {
             programId = 0
-        }
-        if (vaoId != 0) {
-            GLES30.glDeleteVertexArrays(1, intArrayOf(vaoId), 0)
             vaoId = 0
-        }
-        if (vboId != 0) {
-            GLES30.glDeleteBuffers(1, intArrayOf(vboId), 0)
             vboId = 0
         }
     }

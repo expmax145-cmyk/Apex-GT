@@ -20,7 +20,44 @@ class RacingRenderer(
     var isShowroomMode: Boolean = false
     var showroomOrbitAngleDeg: Float = 45f
     var showroomElevationDeg: Float = 16f
-    var showroomZoomDistance: Float = 5.2f
+    var showroomZoomDistance: Float = 5.4f
+    var autoRotateShowroom: Boolean = false
+
+    fun resetShowroomCamera() {
+        showroomOrbitAngleDeg = 45f
+        showroomElevationDeg = 16f
+        showroomZoomDistance = 5.4f
+    }
+
+    fun toggleAutoRotate(): Boolean {
+        autoRotateShowroom = !autoRotateShowroom
+        return autoRotateShowroom
+    }
+
+    fun setCameraPreset(preset: String) {
+        when (preset) {
+            "HERO_3_4" -> {
+                showroomOrbitAngleDeg = 45f
+                showroomElevationDeg = 16f
+                showroomZoomDistance = 5.4f
+            }
+            "SIDE" -> {
+                showroomOrbitAngleDeg = 90f
+                showroomElevationDeg = 12f
+                showroomZoomDistance = 5.6f
+            }
+            "REAR_AERO" -> {
+                showroomOrbitAngleDeg = 155f
+                showroomElevationDeg = 20f
+                showroomZoomDistance = 5.2f
+            }
+            "FRONT_DETAIL" -> {
+                showroomOrbitAngleDeg = 15f
+                showroomElevationDeg = 14f
+                showroomZoomDistance = 4.2f
+            }
+        }
+    }
 
     var currentCameraView: CameraView = CameraView.CHASE_NEAR
     var playerPaintColor: FloatArray = floatArrayOf(0.95f, 0.15f, 0.20f, 1.0f)
@@ -38,6 +75,8 @@ class RacingRenderer(
     var playerCarModel: CarMeshBuilder.CarModel? = null
         private set
     var trackModel: TrackMeshBuilder.TrackModel? = null
+        private set
+    var showroomModel: ShowroomMeshBuilder.ShowroomModel? = null
         private set
     var particleSystem: ParticleSystem? = null
         private set
@@ -95,6 +134,7 @@ class RacingRenderer(
         carModels.clear()
         trackModel?.release()
         particleSystem?.release()
+        showroomModel?.release()
 
         shader = Shader(Shader.DEFAULT_VERTEX_SHADER, Shader.DEFAULT_FRAGMENT_SHADER)
 
@@ -105,6 +145,7 @@ class RacingRenderer(
 
         playerCarModel = carModels[currentCarId] ?: carModels["apex_valkyrie"]
         trackModel = TrackMeshBuilder.buildTrack(currentTrackId)
+        showroomModel = ShowroomMeshBuilder.buildShowroomModel()
         particleSystem = ParticleSystem()
 
         isGlInitialized = true
@@ -145,60 +186,74 @@ class RacingRenderer(
         val activeCar = playerCarModel ?: return
         val activeTrack = trackModel ?: return
 
-        // 1. Dynamic background clear color matching track atmospheric fog
-        val lighting = activeTrack.lightingConfig
-        GLES30.glClearColor(lighting.fogColor[0], lighting.fogColor[1], lighting.fogColor[2], 1.0f)
-        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
-
-        activeShader.use()
-
-        // Environmental Lighting
-        activeShader.setVec3("u_SunDirection", lighting.sunDirection[0], lighting.sunDirection[1], lighting.sunDirection[2])
-        activeShader.setVec3("u_SunColor", lighting.sunColor[0], lighting.sunColor[1], lighting.sunColor[2])
-        activeShader.setVec3("u_SkyAmbient", lighting.skyAmbient[0], lighting.skyAmbient[1], lighting.skyAmbient[2])
-        activeShader.setVec3("u_GroundAmbient", lighting.groundAmbient[0], lighting.groundAmbient[1], lighting.groundAmbient[2])
-
-        // Atmospheric Distance Fog
-        activeShader.setVec3("u_FogColor", lighting.fogColor[0], lighting.fogColor[1], lighting.fogColor[2])
-        activeShader.setFloat("u_FogNear", lighting.fogNear)
-        activeShader.setFloat("u_FogFar", lighting.fogFar)
-
-        // Wet Road Specular Sheen (LOW = 0, MEDIUM = 0.65, HIGH = 1.0)
-        val wetFactor = when {
-            !lighting.isWetRoad -> 0.0f
-            graphicsQuality == "LOW" -> 0.0f
-            graphicsQuality == "MEDIUM" -> 0.65f
-            else -> 1.0f
-        }
-        activeShader.setFloat("u_WetRoadActive", wetFactor)
-
-        // Player Headlight Projection (LOW = off, MEDIUM = 1.1f, HIGH = 1.8f)
-        val enableHeadlights = !isShowroomMode &&
-            graphicsQuality != "LOW" &&
-            (lighting.isWetRoad || activeTrack.trackId == TrackId.NEON_METROPOLIS)
-
-        if (enableHeadlights) {
-            val pHead = playerVehicle.headingAngleRad
-            val forwardX = sin(pHead)
-            val forwardZ = cos(pHead)
-            activeShader.setVec3(
-                "u_HeadlightPos",
-                playerVehicle.position.x + forwardX * 1.8f,
-                playerVehicle.position.y + 0.45f,
-                playerVehicle.position.z + forwardZ * 1.8f
-            )
-            activeShader.setVec3("u_HeadlightDir", forwardX, -0.08f, forwardZ)
-            activeShader.setVec3("u_HeadlightColor", 0.95f, 0.98f, 1.0f)
-            val hlIntensity = if (graphicsQuality == "HIGH") 1.8f else 1.1f
-            activeShader.setFloat("u_HeadlightIntensity", hlIntensity)
-        } else {
-            activeShader.setFloat("u_HeadlightIntensity", 0.0f)
-        }
-
-        // Camera Setup
+        // 1. Lighting & Environment Setup
         if (isShowroomMode) {
+            // Dedicated 3D Showroom Automotive Studio Presentation
+            GLES30.glClearColor(0.045f, 0.050f, 0.065f, 1.0f)
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
+
+            activeShader.use()
+
+            // 3-Point Automotive Studio Key & Fill Lighting
+            activeShader.setVec3("u_SunDirection", -0.45f, 0.85f, 0.55f)
+            activeShader.setVec3("u_SunColor", 1.25f, 1.25f, 1.30f)
+            activeShader.setVec3("u_SkyAmbient", 0.32f, 0.35f, 0.42f)
+            activeShader.setVec3("u_GroundAmbient", 0.14f, 0.16f, 0.20f)
+            activeShader.setVec3("u_FogColor", 0.045f, 0.050f, 0.065f)
+            activeShader.setFloat("u_FogNear", 35f)
+            activeShader.setFloat("u_FogFar", 95f)
+            activeShader.setFloat("u_WetRoadActive", 0.0f)
+            activeShader.setFloat("u_HeadlightIntensity", 0.0f)
+
+            if (autoRotateShowroom) {
+                showroomOrbitAngleDeg = (showroomOrbitAngleDeg + 0.30f) % 360f
+            }
             setupShowroomCamera()
         } else {
+            // Race Track Lighting & Camera
+            val lighting = activeTrack.lightingConfig
+            GLES30.glClearColor(lighting.fogColor[0], lighting.fogColor[1], lighting.fogColor[2], 1.0f)
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
+
+            activeShader.use()
+
+            activeShader.setVec3("u_SunDirection", lighting.sunDirection[0], lighting.sunDirection[1], lighting.sunDirection[2])
+            activeShader.setVec3("u_SunColor", lighting.sunColor[0], lighting.sunColor[1], lighting.sunColor[2])
+            activeShader.setVec3("u_SkyAmbient", lighting.skyAmbient[0], lighting.skyAmbient[1], lighting.skyAmbient[2])
+            activeShader.setVec3("u_GroundAmbient", lighting.groundAmbient[0], lighting.groundAmbient[1], lighting.groundAmbient[2])
+            activeShader.setVec3("u_FogColor", lighting.fogColor[0], lighting.fogColor[1], lighting.fogColor[2])
+            activeShader.setFloat("u_FogNear", lighting.fogNear)
+            activeShader.setFloat("u_FogFar", lighting.fogFar)
+
+            val wetFactor = when {
+                !lighting.isWetRoad -> 0.0f
+                graphicsQuality == "LOW" -> 0.0f
+                graphicsQuality == "MEDIUM" -> 0.65f
+                else -> 1.0f
+            }
+            activeShader.setFloat("u_WetRoadActive", wetFactor)
+
+            val enableHeadlights = graphicsQuality != "LOW" &&
+                (lighting.isWetRoad || activeTrack.trackId == TrackId.NEON_METROPOLIS)
+
+            if (enableHeadlights) {
+                val pHead = playerVehicle.headingAngleRad
+                val forwardX = sin(pHead)
+                val forwardZ = cos(pHead)
+                activeShader.setVec3(
+                    "u_HeadlightPos",
+                    playerVehicle.position.x + forwardX * 1.8f,
+                    playerVehicle.position.y + 0.45f,
+                    playerVehicle.position.z + forwardZ * 1.8f
+                )
+                activeShader.setVec3("u_HeadlightDir", forwardX, -0.08f, forwardZ)
+                activeShader.setVec3("u_HeadlightColor", 0.95f, 0.98f, 1.0f)
+                val hlIntensity = if (graphicsQuality == "HIGH") 1.8f else 1.1f
+                activeShader.setFloat("u_HeadlightIntensity", hlIntensity)
+            } else {
+                activeShader.setFloat("u_HeadlightIntensity", 0.0f)
+            }
+
             setupRacingCamera()
         }
 
@@ -206,8 +261,31 @@ class RacingRenderer(
         activeShader.setMat4("u_ViewMatrix", viewMatrix.values)
         activeShader.setVec3("u_CameraPos", currentCamPos.x, currentCamPos.y, currentCamPos.z)
 
-        // 2. Render Track
-        if (!isShowroomMode) {
+        // 2. Render Environment (Showroom or Track)
+        if (isShowroomMode) {
+            showroomModel?.let { sm ->
+                modelMatrix.identity()
+                activeShader.setMat4("u_ModelMatrix", modelMatrix.values)
+
+                activeShader.setMaterial(Material.SHOWROOM_FLOOR)
+                sm.floorMesh.draw()
+
+                activeShader.setMaterial(Material.SHOWROOM_TURNTABLE)
+                sm.turntableMesh.draw()
+
+                activeShader.setMaterial(Material.SHOWROOM_LED_RING)
+                sm.ledRingMesh.draw()
+
+                activeShader.setMaterial(Material.SHOWROOM_STUDIO_COVE)
+                sm.studioCoveMesh.draw()
+
+                activeShader.setMaterial(Material.SHOWROOM_OVERHEAD_LIGHT)
+                sm.overheadLightsMesh.draw()
+
+                activeShader.setMaterial(Material.CONTACT_SHADOW)
+                sm.contactShadowMesh.draw()
+            }
+        } else {
             // 2.1 Panoramic Sky Dome (Centered on Camera position, unlit panoramic horizon)
             GLES30.glDisable(GLES30.GL_CULL_FACE)
             GLES30.glDepthMask(false)
@@ -226,7 +304,7 @@ class RacingRenderer(
             activeTrack.environmentMesh.draw()
 
             // Asphalt Road
-            activeShader.setMaterial(if (lighting.isWetRoad) Material.ASPHALT_WET else Material.ASPHALT_DRY)
+            activeShader.setMaterial(if (activeTrack.lightingConfig.isWetRoad) Material.ASPHALT_WET else Material.ASPHALT_DRY)
             activeTrack.roadMesh.draw()
 
             // Apex Kerbs
@@ -542,6 +620,7 @@ class RacingRenderer(
         carModels.values.forEach { it.release() }
         carModels.clear()
         trackModel?.release()
+        showroomModel?.release()
         particleSystem?.release()
         isGlInitialized = false
     }

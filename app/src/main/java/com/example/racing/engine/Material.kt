@@ -327,5 +327,52 @@ data class Material(
             roughness = 1f,
             clearcoat = 0f
         )
+        // Phase 11 — Polished dark granite / terrazzo studio floor tiles with subtle specular gloss
+        val SHOWROOM_FLOOR = Material(
+            color = floatArrayOf(0.08f, 0.09f, 0.11f, 1.0f),
+            specular = floatArrayOf(0.65f, 0.68f, 0.72f, 1.0f),
+            shininess = 90f,
+            metallic = 0.15f,
+            roughness = 0.22f,
+            clearcoat = 0.70f
+        )
+        // Phase 11 — Radial polished motorsport carbon & alloy pedestal surface
+        val SHOWROOM_TURNTABLE = Material(
+            color = floatArrayOf(0.12f, 0.13f, 0.16f, 1.0f),
+            specular = floatArrayOf(0.85f, 0.88f, 0.92f, 1.0f),
+            shininess = 105f,
+            metallic = 0.35f,
+            roughness = 0.18f,
+            clearcoat = 0.85f
+        )
+        // Phase 11 — Emissive cyan / electric blue perimeter halo light ring
+        val SHOWROOM_LED_RING = Material(
+            color = floatArrayOf(0.0f, 0.9f, 1.0f, 1.0f),
+            specular = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
+            shininess = 100f,
+            metallic = 0.05f,
+            roughness = 0.10f,
+            clearcoat = 1.0f,
+            emission = floatArrayOf(0.0f, 1.8f, 2.4f, 1.0f)
+        )
+        // Phase 11 — Cylindrical dark cyclorama cove background wall
+        val SHOWROOM_STUDIO_COVE = Material(
+            color = floatArrayOf(0.045f, 0.050f, 0.065f, 1.0f),
+            specular = floatArrayOf(0.15f, 0.16f, 0.20f, 1.0f),
+            shininess = 16f,
+            metallic = 0.05f,
+            roughness = 0.80f,
+            clearcoat = 0.0f
+        )
+        // Phase 11 — Overhead studio softbox diffuse luminaire panels
+        val SHOWROOM_OVERHEAD_LIGHT = Material(
+            color = floatArrayOf(0.95f, 0.96f, 1.0f, 1.0f),
+            specular = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
+            shininess = 100f,
+            metallic = 0.0f,
+            roughness = 0.10f,
+            clearcoat = 1.0f,
+            emission = floatArrayOf(2.2f, 2.2f, 2.4f, 1.0f)
+        )
     }
 }

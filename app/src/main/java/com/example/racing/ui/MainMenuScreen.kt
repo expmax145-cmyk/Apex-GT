@@ -255,6 +255,81 @@ fun MainMenuScreen(
                     }
                 }
 
+                // Environment Quick Selector (Time of Day & Weather)
+                val timeOfDay by viewModel.timeOfDay.collectAsState()
+                val weatherCondition by viewModel.weatherCondition.collectAsState()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Time of Day Pill
+                    Surface(
+                        color = Color(0xFF101624),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FF9100)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.cycleTimeOfDay() }
+                            .testTag("main_menu_time_of_day_toggle")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "TIME OF DAY",
+                                    color = Color(0xFF78909C),
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = timeOfDay.displayName,
+                                    color = Color(0xFFFF9100),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            Text(text = "↻", color = Color(0xFFFF9100), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Weather Pill
+                    Surface(
+                        color = Color(0xFF101624),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3300E5FF)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.cycleWeather() }
+                            .testTag("main_menu_weather_toggle")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "WEATHER",
+                                    color = Color(0xFF78909C),
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = weatherCondition.displayName,
+                                    color = Color(0xFF00E5FF),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            Text(text = "↻", color = Color(0xFF00E5FF), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
                 // Event Mode Cards
                 ModeCard(
                     title = "CIRCUIT CUP",

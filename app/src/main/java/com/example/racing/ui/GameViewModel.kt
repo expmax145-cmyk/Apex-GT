@@ -104,6 +104,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _graphicsPreset = MutableStateFlow(dataManager.graphicsPreset)
     val graphicsPreset: StateFlow<String> = _graphicsPreset.asStateFlow()
 
+    private val _timeOfDay = MutableStateFlow(dataManager.timeOfDay)
+    val timeOfDay: StateFlow<com.example.racing.model.TimeOfDay> = _timeOfDay.asStateFlow()
+
+    private val _weatherCondition = MutableStateFlow(dataManager.weatherCondition)
+    val weatherCondition: StateFlow<com.example.racing.model.WeatherCondition> = _weatherCondition.asStateFlow()
+
     private val _leaderboard = MutableStateFlow<List<com.example.racing.model.LeaderboardRacer>>(emptyList())
     val leaderboard: StateFlow<List<com.example.racing.model.LeaderboardRacer>> = _leaderboard.asStateFlow()
 
@@ -137,6 +143,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             playerPaintColor = getActiveColor()
             playerPaintFinish = dataManager.getCarPaintFinish(savedCar.id)
             graphicsQuality = dataManager.graphicsPreset
+            timeOfDay = dataManager.timeOfDay
+            weatherCondition = dataManager.weatherCondition
             setCar(savedCar.id)
             setTrack(dataManager.selectedTrackId)
         }
@@ -770,6 +778,30 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _graphicsPreset.value = preset
         dataManager.graphicsPreset = preset
         renderer?.graphicsQuality = preset
+    }
+
+    fun setTimeOfDay(tod: com.example.racing.model.TimeOfDay) {
+        _timeOfDay.value = tod
+        dataManager.timeOfDay = tod
+        renderer?.timeOfDay = tod
+    }
+
+    fun setWeather(weather: com.example.racing.model.WeatherCondition) {
+        _weatherCondition.value = weather
+        dataManager.weatherCondition = weather
+        renderer?.weatherCondition = weather
+    }
+
+    fun cycleTimeOfDay() {
+        val all = com.example.racing.model.TimeOfDay.values()
+        val next = all[(_timeOfDay.value.ordinal + 1) % all.size]
+        setTimeOfDay(next)
+    }
+
+    fun cycleWeather() {
+        val all = com.example.racing.model.WeatherCondition.values()
+        val next = all[(_weatherCondition.value.ordinal + 1) % all.size]
+        setWeather(next)
     }
 
     fun setSoundVolume(volume: Float) {

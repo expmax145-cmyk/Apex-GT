@@ -242,6 +242,34 @@ fun RacingHud(
                         }
                     }
                 }
+
+                // Weather and Time of Day indicator badge
+                val timeOfDay by viewModel.timeOfDay.collectAsState()
+                val weatherCondition by viewModel.weatherCondition.collectAsState()
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    color = Color(0xCC0E131F),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3300E5FF))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = timeOfDay.name,
+                            color = Color(0xFFFF9100),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = weatherCondition.name,
+                            color = Color(0xFF00E5FF),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
             }
 
             // Center Top: Track Radar Minimap
