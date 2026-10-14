@@ -141,16 +141,18 @@ class RacingRenderer(
             pendingTrackId = null
         }
 
-        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
-
         val activeShader = shader ?: return
         val activeCar = playerCarModel ?: return
         val activeTrack = trackModel ?: return
 
+        // 1. Dynamic background clear color matching track atmospheric fog
+        val lighting = activeTrack.lightingConfig
+        GLES30.glClearColor(lighting.fogColor[0], lighting.fogColor[1], lighting.fogColor[2], 1.0f)
+        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
+
         activeShader.use()
 
-        // 1. Environmental Lighting
-        val lighting = activeTrack.lightingConfig
+        // Environmental Lighting
         activeShader.setVec3("u_SunDirection", lighting.sunDirection[0], lighting.sunDirection[1], lighting.sunDirection[2])
         activeShader.setVec3("u_SunColor", lighting.sunColor[0], lighting.sunColor[1], lighting.sunColor[2])
         activeShader.setVec3("u_SkyAmbient", lighting.skyAmbient[0], lighting.skyAmbient[1], lighting.skyAmbient[2])
@@ -206,6 +208,16 @@ class RacingRenderer(
 
         // 2. Render Track
         if (!isShowroomMode) {
+            // 2.1 Panoramic Sky Dome (Centered on Camera position, unlit panoramic horizon)
+            GLES30.glDisable(GLES30.GL_CULL_FACE)
+            GLES30.glDepthMask(false)
+            modelMatrix.identity().translate(currentCamPos.x, currentCamPos.y, currentCamPos.z)
+            activeShader.setMat4("u_ModelMatrix", modelMatrix.values)
+            activeShader.setMaterial(Material.SKY_DOME)
+            activeTrack.skyMesh.draw()
+            GLES30.glDepthMask(true)
+            GLES30.glEnable(GLES30.GL_CULL_FACE)
+
             modelMatrix.identity()
             activeShader.setMat4("u_ModelMatrix", modelMatrix.values)
 

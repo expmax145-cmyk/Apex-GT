@@ -264,6 +264,60 @@ data class Material(
             roughness = 0.05f,
             clearcoat = 0.95f
         )
+        // Panoramic sky dome with full unlit ambient response
+        val SKY_DOME = Material(
+            color = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
+            specular = floatArrayOf(0f, 0f, 0f, 0f),
+            shininess = 0f,
+            metallic = 0.0f,
+            roughness = 1.0f,
+            clearcoat = 0.0f
+        )
+        // High-friction gravel runoff trap
+        val GRAVEL_RUNOFF = Material(
+            color = floatArrayOf(0.48f, 0.44f, 0.36f, 1.0f),
+            specular = floatArrayOf(0.10f, 0.10f, 0.10f, 1.0f),
+            shininess = 8f,
+            metallic = 0.0f,
+            roughness = 0.92f,
+            clearcoat = 0.0f
+        )
+        // Synthetic astroturf shoulder verge
+        val ASTROTURF = Material(
+            color = floatArrayOf(0.14f, 0.38f, 0.12f, 1.0f),
+            specular = floatArrayOf(0.12f, 0.12f, 0.12f, 1.0f),
+            shininess = 12f,
+            metallic = 0.0f,
+            roughness = 0.85f,
+            clearcoat = 0.0f
+        )
+        // Galvanized steel debris catch fencing
+        val CATCH_FENCE = Material(
+            color = floatArrayOf(0.65f, 0.68f, 0.72f, 0.75f),
+            specular = floatArrayOf(0.70f, 0.72f, 0.75f, 1.0f),
+            shininess = 60f,
+            metallic = 0.80f,
+            roughness = 0.35f,
+            clearcoat = 0.20f
+        )
+        // Impact-absorbing tire bundle wall
+        val TIRE_WALL = Material(
+            color = floatArrayOf(0.14f, 0.14f, 0.15f, 1.0f),
+            specular = floatArrayOf(0.15f, 0.15f, 0.15f, 1.0f),
+            shininess = 12f,
+            metallic = 0.02f,
+            roughness = 0.85f,
+            clearcoat = 0.0f
+        )
+        // Highly reflective architectural curtain wall glass
+        val GLASS_CURTAIN_WALL = Material(
+            color = floatArrayOf(0.12f, 0.18f, 0.28f, 0.92f),
+            specular = floatArrayOf(1.2f, 1.25f, 1.3f, 1.0f),
+            shininess = 120f,
+            metallic = 0.18f,
+            roughness = 0.04f,
+            clearcoat = 1.0f
+        )
         // Grounding contact shadow quad
         val CONTACT_SHADOW = Material(
             color = floatArrayOf(0.02f, 0.02f, 0.03f, 0.78f),

@@ -780,6 +780,64 @@ class ExampleUnitTest {
             defaultDevCredits > grandTotalCost
         )
     }
+
+    @Test
+    fun testPhase9TrackWorldEnvironmentsAndSkyDomes() {
+        // Phase 9 Verification:
+        // Realistic Racing Tracks, Road Surfaces, World Environments & Panoramic Sky Domes
+        for (trackId in TrackId.values()) {
+            val track = TrackMeshBuilder.buildTrack(trackId)
+            assertNotNull(track)
+            assertNotNull(track.skyMesh)
+            assertNotNull(track.roadMesh)
+            assertNotNull(track.kerbMesh)
+            assertNotNull(track.barrierMesh)
+            assertNotNull(track.environmentMesh)
+            assertNotNull(track.gantryMesh)
+
+            // 1. Sky Dome Verification
+            assertTrue("Track ${trackId.name} sky mesh must have panoramic vertex dome", track.skyMesh.vertexCount >= 100)
+            assertEquals("Sky zenith color must have 3 RGB components", 3, track.lightingConfig.skyZenithColor.size)
+            assertEquals("Sky horizon color must have 3 RGB components", 3, track.lightingConfig.skyHorizonColor.size)
+
+            // 2. High-Fidelity 11-Strip Road Mesh
+            assertTrue("Track ${trackId.name} road mesh must have rich 11-strip surface detail", track.roadMesh.vertexCount >= 1000)
+
+            // 3. Environment Scenery
+            assertTrue("Track ${trackId.name} environment mesh must have rich landscape geometry", track.environmentMesh.vertexCount >= 500)
+
+            // 4. Barriers and Gantries
+            assertTrue("Track ${trackId.name} barrier mesh must have Armco posts & rails", track.barrierMesh.vertexCount >= 200)
+            assertTrue("Track ${trackId.name} start gantry must have F1 LED light pods", track.gantryMesh.vertexCount >= 40)
+
+            track.release()
+        }
+    }
+
+    @Test
+    fun testPhase9PBRMaterialsDefinitions() {
+        // Phase 9 Verification:
+        // Physical PBR material definitions
+        val skyDome = Material.SKY_DOME
+        assertEquals("Sky dome roughness must be 1.0", 1.0f, skyDome.roughness, 0.001f)
+        assertEquals("Sky dome metallic must be 0.0", 0.0f, skyDome.metallic, 0.001f)
+
+        val gravel = Material.GRAVEL_RUNOFF
+        assertTrue("Gravel runoff must have high roughness", gravel.roughness >= 0.88f)
+
+        val turf = Material.ASTROTURF
+        assertTrue("Astroturf must have high roughness", turf.roughness >= 0.80f)
+
+        val catchFence = Material.CATCH_FENCE
+        assertTrue("Catch fence must have metallic property", catchFence.metallic >= 0.70f)
+
+        val tireWall = Material.TIRE_WALL
+        assertTrue("Tire wall must have high rubber roughness", tireWall.roughness >= 0.80f)
+
+        val glass = Material.GLASS_CURTAIN_WALL
+        assertTrue("Glass curtain wall must have low roughness", glass.roughness <= 0.10f)
+        assertTrue("Glass curtain wall must have high clearcoat reflection", glass.clearcoat >= 0.90f)
+    }
 }
 
 

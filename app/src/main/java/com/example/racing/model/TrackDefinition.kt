@@ -38,7 +38,9 @@ data class TrackLightingConfig(
     val fogColor: FloatArray,
     val fogNear: Float,
     val fogFar: Float,
-    val isWetRoad: Boolean
+    val isWetRoad: Boolean,
+    val skyZenithColor: FloatArray = floatArrayOf(0.18f, 0.45f, 0.85f),
+    val skyHorizonColor: FloatArray = floatArrayOf(0.55f, 0.72f, 0.90f)
 ) {
     companion object {
         val GRAND_PRIX = TrackLightingConfig(
@@ -49,7 +51,9 @@ data class TrackLightingConfig(
             fogColor = floatArrayOf(0.45f, 0.65f, 0.88f),
             fogNear = 140f,
             fogFar = 700f,
-            isWetRoad = false
+            isWetRoad = false,
+            skyZenithColor = floatArrayOf(0.14f, 0.42f, 0.86f),
+            skyHorizonColor = floatArrayOf(0.52f, 0.70f, 0.90f)
         )
         val ALPINE_PASS = TrackLightingConfig(
             sunDirection = floatArrayOf(-0.35f, 0.95f, 0.60f),
@@ -59,7 +63,9 @@ data class TrackLightingConfig(
             fogColor = floatArrayOf(0.55f, 0.62f, 0.72f),
             fogNear = 80f,
             fogFar = 550f,
-            isWetRoad = false
+            isWetRoad = false,
+            skyZenithColor = floatArrayOf(0.16f, 0.38f, 0.75f),
+            skyHorizonColor = floatArrayOf(0.60f, 0.68f, 0.78f)
         )
         val NEON_METROPOLIS = TrackLightingConfig(
             sunDirection = floatArrayOf(0.15f, 0.85f, -0.30f),
@@ -69,7 +75,9 @@ data class TrackLightingConfig(
             fogColor = floatArrayOf(0.05f, 0.07f, 0.14f),
             fogNear = 60f,
             fogFar = 450f,
-            isWetRoad = true
+            isWetRoad = true,
+            skyZenithColor = floatArrayOf(0.02f, 0.03f, 0.07f),
+            skyHorizonColor = floatArrayOf(0.09f, 0.08f, 0.18f)
         )
     }
 }

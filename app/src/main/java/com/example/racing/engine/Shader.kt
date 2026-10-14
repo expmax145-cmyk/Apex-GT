@@ -250,6 +250,14 @@ class Shader(
                 vec4 baseColor = u_MaterialColor * v_VertexColor;
                 vec3 albedo = baseColor.rgb;
 
+                // Dedicated unlit rendering path for Panoramic Sky Dome & horizon backdrop
+                if (u_Roughness >= 0.99 && u_SpecularColor.r == 0.0 && u_SpecularColor.g == 0.0 && u_SpecularColor.b == 0.0 && u_Clearcoat == 0.0) {
+                    vec3 x = max(vec3(0.0), albedo - vec3(0.004));
+                    vec3 toneMapped = (x * (6.2 * x + 0.5)) / (x * (6.2 * x + 1.7) + 0.06);
+                    fragColor = vec4(toneMapped, baseColor.a);
+                    return;
+                }
+
                 // Subtle metallic flake sparkle for metallic car paint
                 if (u_Metallic > 0.4 && u_Clearcoat > 0.2) {
                     float flakeNoise = hash21(floor(v_WorldPos.xz * 22.0) + floor(v_WorldPos.yy * 22.0));
