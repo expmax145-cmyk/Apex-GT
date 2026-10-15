@@ -174,9 +174,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun setupAICompetitors() {
         aiOpponents.clear()
         val profiles = listOf(
-            AIDriverProfile("Viper", floatArrayOf(0.10f, 0.50f, 0.98f, 1.0f), 0.88f, AIDifficulty.EXPERT, carId = "apex_spirit_86", preferredLaneOffset = -1.8f),
-            AIDriverProfile("Shadow", floatArrayOf(0.15f, 0.15f, 0.16f, 1.0f), 0.74f, AIDifficulty.MEDIUM, carId = "apex_monza_v10", preferredLaneOffset = 0.0f),
-            AIDriverProfile("Ghost", floatArrayOf(0.98f, 0.88f, 0.10f, 1.0f), 0.58f, AIDifficulty.EASY, carId = "apex_valkyrie", preferredLaneOffset = 1.8f)
+            AIDriverProfile("Viper", floatArrayOf(0.10f, 0.50f, 0.98f, 1.0f), 0.88f, AIDifficulty.EXPERT, carId = "apex_spirit_86", preferredLaneOffset = -1.8f, personality = com.example.racing.ai.AIPersonality.AGGRESSIVE),
+            AIDriverProfile("Shadow", floatArrayOf(0.15f, 0.15f, 0.16f, 1.0f), 0.74f, AIDifficulty.MEDIUM, carId = "apex_monza_v10", preferredLaneOffset = 0.0f, personality = com.example.racing.ai.AIPersonality.BALANCED),
+            AIDriverProfile("Ghost", floatArrayOf(0.98f, 0.88f, 0.10f, 1.0f), 0.58f, AIDifficulty.EASY, carId = "apex_valkyrie", preferredLaneOffset = 1.8f, personality = com.example.racing.ai.AIPersonality.DEFENSIVE)
         )
         for (p in profiles) {
             val carDef = CarDefinition.ALL_CARS.find { it.id == p.carId } ?: CarDefinition.ALL_CARS[0]
@@ -377,9 +377,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         playerVehicle.update(dt, waypoints, roadHalfWidth = 7.0f)
 
-        val otherAiPositions = aiOpponents.map { it.vehicle.position }
-        for (ai in aiOpponents) {
-            ai.update(dt, playerVehicle.position, otherAiPositions)
+        for (i in aiOpponents.indices) {
+            aiOpponents[i].updateWithVehicles(dt, playerVehicle, aiOpponents)
         }
 
         // 1. Physical Vehicle-to-Vehicle Collisions (OBB SAT & Impulse Response)

@@ -162,4 +162,61 @@ class ExampleRobolectricTest {
         assertEquals(ControlType.TOUCH_BUTTONS, vm.controlType.value)
         assertEquals(ControlType.TOUCH_BUTTONS, vm.dataManager.controlType)
     }
+
+    @Test
+    fun `verify AI competitors initialization, distinct personalities and vehicles`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.racing.ui.GameViewModel(app)
+
+        assertEquals(3, vm.aiOpponents.size)
+        val viper = vm.aiOpponents[0]
+        val shadow = vm.aiOpponents[1]
+        val ghost = vm.aiOpponents[2]
+
+        // Verify Viper
+        assertEquals("Viper", viper.profile.name)
+        assertEquals(com.example.racing.ai.AIDifficulty.EXPERT, viper.profile.difficulty)
+        assertEquals(com.example.racing.ai.AIPersonality.AGGRESSIVE, viper.profile.personality)
+        assertEquals("apex_spirit_86", viper.profile.carId)
+
+        // Verify Shadow
+        assertEquals("Shadow", shadow.profile.name)
+        assertEquals(com.example.racing.ai.AIDifficulty.MEDIUM, shadow.profile.difficulty)
+        assertEquals(com.example.racing.ai.AIPersonality.BALANCED, shadow.profile.personality)
+        assertEquals("apex_monza_v10", shadow.profile.carId)
+
+        // Verify Ghost
+        assertEquals("Ghost", ghost.profile.name)
+        assertEquals(com.example.racing.ai.AIDifficulty.EASY, ghost.profile.difficulty)
+        assertEquals(com.example.racing.ai.AIPersonality.DEFENSIVE, ghost.profile.personality)
+        assertEquals("apex_valkyrie", ghost.profile.carId)
+    }
+
+    @Test
+    fun `verify AI track progress and multi-vehicle update stability`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.racing.ui.GameViewModel(app)
+
+        val sampleWaypoints = listOf(
+            com.example.racing.engine.Vector3f(0f, 0f, 0f),
+            com.example.racing.engine.Vector3f(0f, 0f, 50f),
+            com.example.racing.engine.Vector3f(50f, 0f, 100f),
+            com.example.racing.engine.Vector3f(100f, 0f, 50f),
+            com.example.racing.engine.Vector3f(50f, 0f, 0f)
+        )
+
+        val viper = vm.aiOpponents[0]
+        val testAI = com.example.racing.ai.OpponentAIController(viper.vehicle, viper.profile, sampleWaypoints)
+
+        // Initial progress check
+        val initialProgress = testAI.getTrackProgress(sampleWaypoints)
+        assertTrue(initialProgress >= 0f)
+
+        // Run multi-vehicle AI update step
+        testAI.updateWithVehicles(0.016f, vm.playerVehicle, vm.aiOpponents)
+        assertEquals(com.example.racing.ai.AIRecoveryState.NORMAL, testAI.recoveryState)
+        assertTrue(testAI.vehicle.throttle >= 0f)
+        assertTrue(testAI.vehicle.steerInput in -1.0f..1.0f)
+    }
 }
+

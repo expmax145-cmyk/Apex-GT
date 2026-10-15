@@ -317,9 +317,9 @@ class VehiclePhysics(
         var bestProjY = position.y
 
         // 1. Adaptive window search around last nearest waypoint index
-        val window = if (lastNearestWaypointIdx in 0 until count) -12..24 else 0 until count
+        val window = if (count > 25 && lastNearestWaypointIdx in 0 until count) -12..24 else 0 until count
         for (offset in window) {
-            val i = (lastNearestWaypointIdx + offset + count) % count
+            val i = ((lastNearestWaypointIdx + offset) % count + count) % count
             val p1 = waypoints[i]
             val p2 = waypoints[(i + 1) % count]
 
