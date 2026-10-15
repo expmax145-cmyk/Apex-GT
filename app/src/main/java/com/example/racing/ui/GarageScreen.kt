@@ -1,5 +1,6 @@
 package com.example.racing.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,10 +9,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -21,22 +25,32 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,11 +61,25 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
+import com.example.racing.engine.PaintFinishType
 import com.example.racing.model.CarDefinition
+import com.example.racing.model.CarUpgradeState
 import com.example.racing.model.RaceMode
 import com.example.racing.model.TrackId
-import com.example.racing.engine.PaintFinishType
 
+/**
+ * Phase 11 — Premium 3D Automotive Showroom & Garage Interface.
+ * Features:
+ * - Interactive 3D vehicle inspection with orbit touch rotation, pinch zoom, and reset
+ * - Camera view presets: 3/4 Hero, Side Profile, Rear Aero, Front Detail
+ * - Turntable auto-rotate toggle
+ * - Vehicle selector strip with real ownership status and prices
+ * - Live vehicle telemetry & performance metrics (Top Speed, 0-100 Accel, Power/Torque, Grip, Weight, Drivetrain)
+ * - Real-time paint customizer with factory palette & clearcoat finishes (Gloss, Metallic, Matte Satin, Pearlescent)
+ * - Tuner performance upgrades with real parameter improvements applied directly to physics
+ * - Economy purchasing with confirmation dialog and release-protected development funds
+ */
 @Composable
 fun GarageScreen(
     viewModel: GameViewModel,
@@ -65,30 +93,41 @@ fun GarageScreen(
     val selectedColorIdx by viewModel.carColorIndex.collectAsState()
     val selectedPaintFinish by viewModel.carPaintFinish.collectAsState()
 
-    var activeTab by remember { mutableIntStateOf(0) } // 0: Vehicles, 1: Paint, 2: Performance
+    var activeTab by remember { mutableIntStateOf(0) } // 0: Cars, 1: Specs, 2: Paint, 3: Tuning
+    var isAutoRotateActive by remember { mutableStateOf(false) }
+    var showPurchaseDialog by remember { mutableStateOf(false) }
 
     val isUnlocked = unlockedIds.contains(selectedCar.id)
+    val safePadding = WindowInsets.safeDrawing.asPaddingValues()
 
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val isCompact = maxWidth < 700.dp
-        val isShort = maxHeight < 390.dp
-        val horizontalPad = if (isCompact) 12.dp else 20.dp
+        val isShort = maxHeight < 400.dp
+        val horizontalPad = if (isCompact) 12.dp else 24.dp
 
-        // 1. Top Bar: Back button, Title & Credits balance
+        // =========================================================================================
+        // 1. TOP BAR: Back, Showroom Branding, Camera Controls, Credits Balance & Dev Cash
+        // =========================================================================================
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = horizontalPad, vertical = if (isShort) 8.dp else 14.dp),
+                .padding(
+                    start = horizontalPad,
+                    end = horizontalPad,
+                    top = safePadding.calculateTopPadding() + (if (isShort) 4.dp else 10.dp)
+                ),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Left: Back button & Showroom Title
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = { viewModel.navigateTo(GameScreen.MAIN_MENU) },
                     modifier = Modifier
                         .testTag("garage_back_button")
                         .size(44.dp)
-                        .background(Color(0xCC0E131F), RoundedCornerShape(12.dp))
+                        .background(Color(0xD90A0E18), RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -103,86 +142,223 @@ fun GarageScreen(
                     Text(
                         text = "APEX 3D SHOWROOM",
                         color = Color.White,
-                        fontSize = if (isCompact) 15.sp else 18.sp,
-                        fontWeight = FontWeight.Black
+                        fontSize = if (isCompact) 14.sp else 17.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
                     )
                     Text(
-                        text = "TOUCH & DRAG TO ROTATE VEHICLE",
+                        text = "INTERACTIVE INSPECTION & TUNING",
                         color = Color(0xFF00E5FF),
-                        fontSize = 9.sp,
+                        fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
                 }
             }
 
-            // Credits Balance & Dev Cash Button
+            // Right: Inspection Controls (Reset / Auto-Rotate) & Credits Balance
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Reset Camera Action
+                IconButton(
+                    onClick = { viewModel.resetShowroomCamera() },
+                    modifier = Modifier
+                        .testTag("reset_camera_button")
+                        .size(38.dp)
+                        .background(Color(0xD90A0E18), CircleShape)
+                        .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Reset Camera View",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // Auto-Rotate Toggle Action
+                IconButton(
+                    onClick = {
+                        isAutoRotateActive = viewModel.toggleAutoRotate()
+                    },
+                    modifier = Modifier
+                        .testTag("auto_rotate_button")
+                        .size(38.dp)
+                        .background(
+                            if (isAutoRotateActive) Color(0xFF00E5FF) else Color(0xD90A0E18),
+                            CircleShape
+                        )
+                        .border(1.dp, if (isAutoRotateActive) Color.White else Color(0x33FFFFFF), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sync,
+                        contentDescription = "Toggle Turntable Rotation",
+                        tint = if (isAutoRotateActive) Color(0xFF070B12) else Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Credits Balance Card
                 Surface(
-                    color = Color(0xCC0E131F),
-                    shape = RoundedCornerShape(20.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFD700)),
-                    modifier = Modifier.clickable { viewModel.grantDevelopmentFunds() }
+                    color = Color(0xD90A0E18),
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x44FFD700))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "CR", color = Color(0xFFFFD700), fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        Text(text = "CR", color = Color(0xFFFFD700), fontSize = 11.sp, fontWeight = FontWeight.Black)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "%,d".format(credits),
                             color = Color.White,
-                            fontSize = if (isCompact) 13.sp else 15.sp,
+                            fontSize = if (isCompact) 13.sp else 14.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Development Currency Injector Button
-                Button(
-                    onClick = { viewModel.grantDevelopmentFunds() },
-                    modifier = Modifier
-                        .testTag("dev_add_funds_button")
-                        .height(34.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
-                    shape = RoundedCornerShape(17.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "+$500K DEV",
-                        color = Color(0xFF060910),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black
-                    )
+                // Development Currency Injector (Release-Protected)
+                if (BuildConfig.DEBUG) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { viewModel.grantDevelopmentFunds() },
+                        modifier = Modifier
+                            .testTag("dev_add_funds_button")
+                            .height(34.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                        shape = RoundedCornerShape(17.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "+$100K DEV",
+                            color = Color(0xFF070B12),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
             }
         }
 
-        // 2. Bottom Control Dashboard
+        // =========================================================================================
+        // 2. VEHICLE HERO TITLE & CAMERA PRESET CHIPS (Floating Top-Left)
+        // =========================================================================================
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(
+                    start = horizontalPad,
+                    top = safePadding.calculateTopPadding() + (if (isShort) 50.dp else 68.dp)
+                )
+        ) {
+            Surface(
+                color = Color(0xD90A0E18),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF)),
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = selectedCar.name.uppercase(),
+                            color = Color.White,
+                            fontSize = if (isCompact) 15.sp else 18.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // Category Pill
+                        Surface(
+                            color = Color(0x3300E5FF),
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF00E5FF))
+                        ) {
+                            Text(
+                                text = selectedCar.category.uppercase(),
+                                color = Color(0xFF00E5FF),
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    // Ownership status
+                    if (isUnlocked) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF00E676),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "OWNED — ACTIVE IN RACE",
+                                color = Color(0xFF00E676),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "LOCKED — %,d CR".format(selectedCar.basePrice),
+                            color = Color(0xFFFFD700),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            // Camera View Angle Preset Chips
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CameraPresetChip(title = "3/4 HERO", onClick = { viewModel.setCameraPreset("HERO_3_4") })
+                CameraPresetChip(title = "SIDE", onClick = { viewModel.setCameraPreset("SIDE") })
+                CameraPresetChip(title = "REAR AERO", onClick = { viewModel.setCameraPreset("REAR_AERO") })
+                CameraPresetChip(title = "FRONT", onClick = { viewModel.setCameraPreset("FRONT_DETAIL") })
+            }
+        }
+
+        // =========================================================================================
+        // 3. BOTTOM CONTROL DASHBOARD: Tabs, Customizer Panels, Track Selector & Start/Buy Button
+        // =========================================================================================
         Surface(
-            color = Color(0xF2090D16),
+            color = Color(0xF5090D16),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2AFFFFFF)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF)),
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
-
-                // Navigation Row: Left Tabs vs Right Track-Selector & Start Button
+            Column(
+                modifier = Modifier
+                    .padding(
+                        start = horizontalPad,
+                        end = horizontalPad,
+                        top = 10.dp,
+                        bottom = safePadding.calculateBottomPadding() + 8.dp
+                    )
+            ) {
+                // Tab Selection Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: Customizer Tabs
+                    // Left 4 Tabs: Cars, Specs, Paint, Tuning
                     Row(
-                        modifier = Modifier.weight(0.55f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.weight(0.58f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         GarageTabButton(
                             title = "CARS",
@@ -192,30 +368,36 @@ fun GarageScreen(
                             modifier = Modifier.weight(1f)
                         )
                         GarageTabButton(
-                            title = "PAINT",
-                            icon = Icons.Default.ColorLens,
+                            title = "SPECS",
+                            icon = Icons.Default.Info,
                             selected = activeTab == 1,
                             onClick = { activeTab = 1 },
                             modifier = Modifier.weight(1f)
                         )
                         GarageTabButton(
-                            title = "TUNING",
-                            icon = Icons.Default.Build,
+                            title = "PAINT",
+                            icon = Icons.Default.ColorLens,
                             selected = activeTab == 2,
                             onClick = { activeTab = 2 },
                             modifier = Modifier.weight(1f)
                         )
+                        GarageTabButton(
+                            title = "TUNING",
+                            icon = Icons.Default.Build,
+                            selected = activeTab == 3,
+                            onClick = { activeTab = 3 },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                    // Right: Track Selector (Left of Start) + Start Race Button
+                    // Right: Track Selector + Start / Buy Primary Action Button
                     Row(
-                        modifier = Modifier.weight(0.45f),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(0.42f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Track Selector Control
                         TrackSelectorControl(
                             selectedTrack = selectedTrack,
                             onSelectNextTrack = {
@@ -223,21 +405,21 @@ fun GarageScreen(
                                 val nextIdx = (selectedTrack.ordinal + 1) % all.size
                                 viewModel.selectTrack(all[nextIdx])
                             },
-                            modifier = Modifier.weight(1.1f)
+                            modifier = Modifier.weight(1.05f)
                         )
 
-                        // Prominent Start Race Button in bottom-right corner!
+                        // Primary Action Button (START RACE or BUY VEHICLE)
                         Button(
                             onClick = {
                                 if (isUnlocked) {
                                     viewModel.startRace(RaceMode.CIRCUIT_RACE)
                                 } else {
-                                    viewModel.buySelectedCar()
+                                    showPurchaseDialog = true
                                 }
                             },
                             modifier = Modifier
-                                .testTag("start_race_button")
-                                .weight(1f)
+                                .testTag(if (isUnlocked) "start_race_button" else "buy_vehicle_button")
+                                .weight(0.95f)
                                 .height(46.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isUnlocked) Color(0xFFFF3D00) else Color(0xFFFF9100)
@@ -245,15 +427,16 @@ fun GarageScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
-                                imageVector = if (isUnlocked) Icons.Default.PlayArrow else Icons.Default.DirectionsCar,
-                                contentDescription = if (isUnlocked) "Start Race" else "Buy Car",
-                                tint = Color.White
+                                imageVector = if (isUnlocked) Icons.Default.PlayArrow else Icons.Default.ShoppingBag,
+                                contentDescription = if (isUnlocked) "Start Race" else "Buy Vehicle",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
                             Text(
                                 text = if (isUnlocked) "START" else "BUY",
                                 color = Color.White,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }
@@ -267,24 +450,121 @@ fun GarageScreen(
                     0 -> VehiclesTab(
                         viewModel = viewModel,
                         selectedCar = selectedCar,
-                        unlockedIds = unlockedIds,
-                        credits = credits
+                        unlockedIds = unlockedIds
                     )
-                    1 -> PaintTab(
+                    1 -> SpecsTab(
+                        viewModel = viewModel,
+                        car = selectedCar,
+                        upgrades = upgrades
+                    )
+                    2 -> PaintTab(
                         selectedCar = selectedCar,
                         selectedColorIdx = selectedColorIdx,
                         selectedFinish = selectedPaintFinish,
                         onSelectColor = { viewModel.selectCarColor(it) },
                         onSelectFinish = { viewModel.selectCarPaintFinish(it) }
                     )
-                    2 -> TuningTab(
+                    3 -> TuningTab(
                         viewModel = viewModel,
                         upgrades = upgrades,
-                        credits = credits
+                        credits = credits,
+                        car = selectedCar
                     )
                 }
             }
         }
+
+        // =========================================================================================
+        // 4. VEHICLE PURCHASE CONFIRMATION DIALOG
+        // =========================================================================================
+        if (showPurchaseDialog) {
+            val canAfford = credits >= selectedCar.basePrice || BuildConfig.DEBUG
+            AlertDialog(
+                onDismissRequest = { showPurchaseDialog = false },
+                title = {
+                    Text(
+                        text = "Purchase ${selectedCar.name}?",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 17.sp
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "Category: ${selectedCar.category}",
+                            color = Color(0xFF90A4AE),
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Price: %,d CR".format(selectedCar.basePrice),
+                            color = Color(0xFFFFD700),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Your Balance: %,d CR".format(credits),
+                            color = Color.White,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Remaining: %,d CR".format(credits - selectedCar.basePrice),
+                            color = if (canAfford) Color(0xFF00E676) else Color(0xFFFF5252),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showPurchaseDialog = false
+                            viewModel.buySelectedCar()
+                        },
+                        enabled = canAfford,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3D00)),
+                        modifier = Modifier.testTag("confirm_purchase_button")
+                    ) {
+                        Text("CONFIRM PURCHASE", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showPurchaseDialog = false },
+                        modifier = Modifier.testTag("cancel_purchase_button")
+                    ) {
+                        Text("CANCEL", color = Color(0xFF90A4AE))
+                    }
+                },
+                containerColor = Color(0xFF131A28),
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraPresetChip(
+    title: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = Color(0xD90A0E18),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3300E5FF)),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            text = title,
+            color = Color(0xFF00E5FF),
+            fontSize = 8.5.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
     }
 }
 
@@ -324,20 +604,20 @@ fun TrackSelectorControl(
                     imageVector = trackIcon,
                     contentDescription = selectedTrack.title,
                     tint = trackColor,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(17.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Column {
                     Text(
-                        text = "TRACK",
+                        text = "CIRCUIT",
                         color = Color(0xFF78909C),
-                        fontSize = 8.sp,
+                        fontSize = 7.5.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = selectedTrack.title,
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
@@ -346,7 +626,7 @@ fun TrackSelectorControl(
             Text(
                 text = "➔",
                 color = trackColor,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -373,7 +653,7 @@ fun GarageTabButton(
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp),
+            modifier = Modifier.padding(horizontal = 4.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -381,13 +661,13 @@ fun GarageTabButton(
                 imageVector = icon,
                 contentDescription = title,
                 tint = if (selected) Color(0xFF00E5FF) else Color(0xFF78909C),
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(15.dp)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = title,
                 color = if (selected) Color.White else Color(0xFF78909C),
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -398,12 +678,11 @@ fun GarageTabButton(
 fun VehiclesTab(
     viewModel: GameViewModel,
     selectedCar: CarDefinition,
-    unlockedIds: Set<String>,
-    credits: Int
+    unlockedIds: Set<String>
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CarDefinition.ALL_CARS.forEach { car ->
@@ -432,21 +711,21 @@ fun VehiclesTab(
                     Text(
                         text = car.category,
                         color = Color(0xFF90A4AE),
-                        fontSize = 9.sp
+                        fontSize = 8.5.sp
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     if (isOwned) {
                         Text(
                             text = if (isSelected) "SELECTED" else "OWNED",
                             color = if (isSelected) Color(0xFF00E676) else Color(0xFF81C784),
-                            fontSize = 10.sp,
+                            fontSize = 9.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     } else {
                         Text(
                             text = "%,d CR".format(car.basePrice),
                             color = Color(0xFFFFD700),
-                            fontSize = 10.sp,
+                            fontSize = 9.5.sp,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Monospace
                         )
@@ -454,6 +733,73 @@ fun VehiclesTab(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SpecsTab(
+    viewModel: GameViewModel,
+    car: CarDefinition,
+    upgrades: CarUpgradeState
+) {
+    val topSpeed = viewModel.getVehicleTopSpeed(car, upgrades)
+    val torque = viewModel.getVehicleTorque(car, upgrades)
+    val weight = viewModel.getVehicleWeight(car, upgrades)
+    val zeroToHundred = viewModel.getVehicleZeroToHundred(car, upgrades)
+    val grip = viewModel.getVehicleGrip(upgrades)
+    val drivetrain = if (car.driveFrontRatio > 0.1f) "AWD Torque Vectoring" else "RWD Precision Drift"
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Column 1: Top Speed, 0-100 Accel, Power/Torque
+        Column(modifier = Modifier.weight(1f)) {
+            SpecMetricRow("TOP SPEED", "%.0f km/h".format(topSpeed), topSpeed / 400f)
+            Spacer(modifier = Modifier.height(4.dp))
+            SpecMetricRow("0-100 KM/H", "%.2f s".format(zeroToHundred), (5.0f - zeroToHundred) / 3.2f)
+            Spacer(modifier = Modifier.height(4.dp))
+            SpecMetricRow("TORQUE", "%.0f Nm".format(torque), torque / 1000f)
+        }
+
+        // Column 2: Lateral Handling, Curb Weight, Drivetrain
+        Column(modifier = Modifier.weight(1f)) {
+            SpecMetricRow("TIRE GRIP", "%.2f µ".format(grip), grip / 1.8f)
+            Spacer(modifier = Modifier.height(4.dp))
+            SpecMetricRow("CURB WEIGHT", "%.0f kg".format(weight), (1600f - weight) / 700f)
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "DRIVETRAIN", color = Color(0xFF78909C), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                Text(text = drivetrain, color = Color(0xFF00E5FF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpecMetricRow(label: String, value: String, fraction: Float) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = label, color = Color(0xFF78909C), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            Text(text = value, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        LinearProgressIndicator(
+            progress = { fraction.coerceIn(0.05f, 1.0f) },
+            color = Color(0xFF00E5FF),
+            trackColor = Color(0x33102027),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+        )
     }
 }
 
@@ -469,10 +815,10 @@ fun PaintTab(
         Text(
             text = "FACTORY AUTOMOTIVE COLOR",
             color = Color(0xFF90A4AE),
-            fontSize = 10.sp,
+            fontSize = 9.5.sp,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(5.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(selectedCar.availableColors.indices.toList()) { idx ->
                 val (name, rgb) = selectedCar.availableColors[idx]
@@ -485,7 +831,7 @@ fun PaintTab(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(32.dp)
                             .background(swatchColor, CircleShape)
                             .border(
                                 width = if (isSelected) 3.dp else 1.dp,
@@ -493,26 +839,26 @@ fun PaintTab(
                                 shape = CircleShape
                             )
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = name,
                         color = if (isSelected) Color.White else Color(0xFF78909C),
-                        fontSize = 9.sp,
+                        fontSize = 8.5.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = "CLEARCOAT & SURFACE FINISH",
             color = Color(0xFF90A4AE),
-            fontSize = 10.sp,
+            fontSize = 9.5.sp,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(5.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(PaintFinishType.values().toList()) { finish ->
                 val isSelected = finish == selectedFinish
@@ -528,16 +874,14 @@ fun PaintTab(
                             shape = RoundedCornerShape(8.dp)
                         )
                         .clickable { onSelectFinish(finish) }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = finish.displayName,
-                            color = if (isSelected) Color.White else Color(0xFF90A4AE),
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
+                    Text(
+                        text = finish.displayName,
+                        color = if (isSelected) Color.White else Color(0xFF90A4AE),
+                        fontSize = 10.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
                 }
             }
         }
@@ -547,42 +891,47 @@ fun PaintTab(
 @Composable
 fun TuningTab(
     viewModel: GameViewModel,
-    upgrades: com.example.racing.model.CarUpgradeState,
-    credits: Int
+    upgrades: CarUpgradeState,
+    credits: Int,
+    car: CarDefinition
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         UpgradeCard(
-            name = "ECU STAGE",
+            name = "ECU TUNING",
+            delta = "+65 Nm Torque",
             level = upgrades.engineStage,
             maxLevel = 3,
-            canUpgrade = upgrades.engineStage < 3 && credits >= 3500,
+            canUpgrade = upgrades.engineStage < 3 && (credits >= 3500 || BuildConfig.DEBUG),
             onUpgrade = { viewModel.upgradePart("ENGINE") },
             modifier = Modifier.weight(1f)
         )
         UpgradeCard(
             name = "TIRE COMPOUND",
+            delta = "+0.12 Peak Grip",
             level = upgrades.tireStage,
             maxLevel = 3,
-            canUpgrade = upgrades.tireStage < 3 && credits >= 3500,
+            canUpgrade = upgrades.tireStage < 3 && (credits >= 3500 || BuildConfig.DEBUG),
             onUpgrade = { viewModel.upgradePart("TIRES") },
             modifier = Modifier.weight(1f)
         )
         UpgradeCard(
             name = "SUSPENSION",
+            delta = "+0.15 Aero Downforce",
             level = upgrades.suspensionStage,
             maxLevel = 3,
-            canUpgrade = upgrades.suspensionStage < 3 && credits >= 3500,
+            canUpgrade = upgrades.suspensionStage < 3 && (credits >= 3500 || BuildConfig.DEBUG),
             onUpgrade = { viewModel.upgradePart("SUSPENSION") },
             modifier = Modifier.weight(1f)
         )
         UpgradeCard(
             name = "WEIGHT DROP",
+            delta = "-55 kg Carbon Diet",
             level = upgrades.weightReduction,
             maxLevel = 3,
-            canUpgrade = upgrades.weightReduction < 3 && credits >= 3500,
+            canUpgrade = upgrades.weightReduction < 3 && (credits >= 3500 || BuildConfig.DEBUG),
             onUpgrade = { viewModel.upgradePart("WEIGHT") },
             modifier = Modifier.weight(1f)
         )
@@ -592,6 +941,7 @@ fun TuningTab(
 @Composable
 fun UpgradeCard(
     name: String,
+    delta: String,
     level: Int,
     maxLevel: Int,
     canUpgrade: Boolean,
@@ -611,15 +961,20 @@ fun UpgradeCard(
             Text(
                 text = name,
                 color = Color.White,
-                fontSize = 9.sp,
+                fontSize = 8.5.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
+            )
+            Text(
+                text = delta,
+                color = Color(0xFF00E5FF),
+                fontSize = 7.5.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "STAGE $level/$maxLevel",
-                color = if (level == maxLevel) Color(0xFFFFD700) else Color(0xFF00E5FF),
-                fontSize = 10.sp,
+                color = if (level == maxLevel) Color(0xFFFFD700) else Color.White,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Black
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -634,7 +989,7 @@ fun UpgradeCard(
                 modifier = Modifier.height(26.dp)
             ) {
                 Text(
-                    text = if (level == maxLevel) "MAX" else "+3,500CR",
+                    text = if (level == maxLevel) "MAX" else "3,500 CR",
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold
                 )

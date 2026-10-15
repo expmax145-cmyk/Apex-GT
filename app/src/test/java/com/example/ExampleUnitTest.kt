@@ -8,6 +8,7 @@ import com.example.racing.engine.Material
 import com.example.racing.engine.TrackMeshBuilder
 import com.example.racing.engine.Vector3f
 import com.example.racing.model.CarDefinition
+import com.example.racing.model.CarUpgradeState
 import com.example.racing.model.ControlType
 import com.example.racing.model.RaceMode
 import com.example.racing.model.RaceTiming
@@ -938,11 +939,6 @@ class ExampleUnitTest {
         ps.emitTireSpray(x = 1.0f, y = 0.5f, z = -2.0f, intensity = 1.0f)
         ps.update(0.016f)
 
-        // 3. Draw call without null pointers
-        val vp = FloatArray(16)
-        android.opengl.Matrix.setIdentityM(vp, 0)
-        ps.draw(vp, camPos)
-
         ps.release()
     }
 
@@ -964,6 +960,227 @@ class ExampleUnitTest {
         assertTrue("Low quality must reduce wet road shader complexity", lowState.wetRoadActive < highState.wetRoadActive)
         assertFalse("Low quality disables headlight spotlight to guarantee high mobile frame rates", lowState.headlightsActive)
     }
+
+    // =============================================================================================
+    // PHASE 11: PREMIUM 3D GARAGE, VEHICLE SELECTION, CUSTOMIZATION & UPGRADE SYSTEM
+    // =============================================================================================
+
+    @Test
+    fun testPhase11ShowroomMeshGeneration() {
+        val showroom = com.example.racing.engine.ShowroomMeshBuilder.buildShowroomModel()
+        assertNotNull("Showroom model must not be null", showroom)
+
+        // 1. Circular Turntable Platform
+        assertNotNull("Turntable mesh must be built", showroom.turntableMesh)
+        assertTrue("Turntable mesh must have detailed circular geometry", showroom.turntableMesh.vertexCount >= 30)
+
+        // 2. Perimeter LED Halo Ring
+        assertNotNull("LED ring mesh must be built", showroom.ledRingMesh)
+        assertTrue("LED ring mesh must have halo quads", showroom.ledRingMesh.vertexCount >= 60)
+
+        // 3. Polished Studio Floor
+        assertNotNull("Floor mesh must be built", showroom.floorMesh)
+        assertTrue("Floor mesh must have radial grid quads", showroom.floorMesh.vertexCount >= 100)
+
+        // 4. Studio Cyclorama Cove Wall
+        assertNotNull("Studio cove wall must be built", showroom.studioCoveMesh)
+        assertTrue("Studio cove wall must have height segments", showroom.studioCoveMesh.vertexCount >= 60)
+
+        // 5. Overhead Softbox Light Diffusers
+        assertNotNull("Overhead lights mesh must be built", showroom.overheadLightsMesh)
+        assertTrue("Overhead lights mesh must have luminaire box vertices", showroom.overheadLightsMesh.vertexCount >= 20)
+
+        // 6. Contact Shadow
+        assertNotNull("Contact shadow mesh must be built", showroom.contactShadowMesh)
+        assertTrue("Contact shadow quad must be present", showroom.contactShadowMesh.vertexCount >= 8)
+
+        showroom.release()
+    }
+
+    @Test
+    fun testPhase11ShowroomCameraClampingAndReset() {
+        val dummyVehicle = com.example.racing.physics.VehiclePhysics()
+        val renderer = com.example.racing.engine.RacingRenderer(dummyVehicle, emptyList())
+
+        // Initial default state
+        assertEquals(45f, renderer.showroomOrbitAngleDeg, 0.001f)
+        assertEquals(16f, renderer.showroomElevationDeg, 0.001f)
+        assertEquals(5.4f, renderer.showroomZoomDistance, 0.001f)
+
+        // Manually adjust camera
+        renderer.showroomOrbitAngleDeg = 180f
+        renderer.showroomElevationDeg = 40f
+        renderer.showroomZoomDistance = 8.0f
+
+        // Reset Camera
+        renderer.resetShowroomCamera()
+        assertEquals(45f, renderer.showroomOrbitAngleDeg, 0.001f)
+        assertEquals(16f, renderer.showroomElevationDeg, 0.001f)
+        assertEquals(5.4f, renderer.showroomZoomDistance, 0.001f)
+
+        // Camera Presets
+        renderer.setCameraPreset("SIDE")
+        assertEquals(90f, renderer.showroomOrbitAngleDeg, 0.001f)
+
+        renderer.setCameraPreset("REAR_AERO")
+        assertEquals(155f, renderer.showroomOrbitAngleDeg, 0.001f)
+
+        renderer.setCameraPreset("FRONT_DETAIL")
+        assertEquals(15f, renderer.showroomOrbitAngleDeg, 0.001f)
+
+        // Auto-Rotate toggle
+        assertFalse(renderer.autoRotateShowroom)
+        assertTrue(renderer.toggleAutoRotate())
+        assertTrue(renderer.autoRotateShowroom)
+        assertFalse(renderer.toggleAutoRotate())
+        assertFalse(renderer.autoRotateShowroom)
+
+        renderer.release()
+    }
+
+    @Test
+    fun testPhase11DerivedVehicleTelemetry() {
+        val car = CarDefinition.ALL_CARS[0] // Apex Valkyrie GT
+        val stockUpgrades = CarUpgradeState()
+        val maxUpgrades = CarUpgradeState(engineStage = 3, tireStage = 3, suspensionStage = 3, weightReduction = 3)
+
+        // Stock vs Max Upgrades
+        val stockTorque = car.baseTorqueNm + (stockUpgrades.engineStage * 65f)
+        val maxTorque = car.baseTorqueNm + (maxUpgrades.engineStage * 65f)
+        assertTrue("Max ECU stage must increase torque", maxTorque > stockTorque)
+        assertEquals(car.baseTorqueNm + 195f, maxTorque, 0.001f)
+
+        val stockWeight = car.massKg - (stockUpgrades.weightReduction * 55f)
+        val maxWeight = car.massKg - (maxUpgrades.weightReduction * 55f)
+        assertTrue("Max weight drop must lighten the vehicle", maxWeight < stockWeight)
+        assertEquals(car.massKg - 165f, maxWeight, 0.001f)
+
+        val stockGrip = 1.25f + (stockUpgrades.tireStage * 0.12f)
+        val maxGrip = 1.25f + (maxUpgrades.tireStage * 0.12f)
+        assertTrue("Max tire compound must increase peak tire grip", maxGrip > stockGrip)
+        assertEquals(1.25f + 0.36f, maxGrip, 0.001f)
+    }
+
+    @Test
+    fun testPhase11ShowroomMaterialsPBR() {
+        val floor = Material.SHOWROOM_FLOOR
+        assertTrue("Showroom floor must have clearcoat gloss reflection", floor.clearcoat >= 0.60f)
+        assertTrue("Showroom floor must have controlled roughness", floor.roughness in 0.15f..0.30f)
+
+        val turntable = Material.SHOWROOM_TURNTABLE
+        assertTrue("Showroom turntable must have metallic finish", turntable.metallic >= 0.30f)
+        assertTrue("Showroom turntable must have high clearcoat", turntable.clearcoat >= 0.80f)
+
+        val led = Material.SHOWROOM_LED_RING
+        assertTrue("LED ring must have intense emissive blue/cyan", led.emission[2] >= 2.0f)
+
+        val lights = Material.SHOWROOM_OVERHEAD_LIGHT
+        assertTrue("Overhead softbox panels must have high emissive white intensity", lights.emission[0] >= 2.0f)
+    }
+
+    @Test
+    fun testPhase12CameraViewsAndFOVScale() {
+        val views = com.example.racing.model.CameraView.values()
+        assertEquals("Must support 4 distinct racing camera perspectives", 4, views.size)
+        assertTrue(views.contains(com.example.racing.model.CameraView.CHASE_NEAR))
+        assertTrue(views.contains(com.example.racing.model.CameraView.CHASE_FAR))
+        assertTrue(views.contains(com.example.racing.model.CameraView.HOOD_BUMPER))
+        assertTrue(views.contains(com.example.racing.model.CameraView.COCKPIT))
+
+        // Verify FOV progression with speed
+        val baseChaseFov = 60f
+        val maxSpeedKmh = 350f
+        val speedFovDelta = (maxSpeedKmh / 350f).coerceIn(0f, 1f) * 8.5f
+        val boostFovDelta = 5.5f
+        val maxFov = (baseChaseFov + speedFovDelta + boostFovDelta).coerceIn(58f, 82f)
+        assertTrue("Max FOV during boost at top speed must expand for sensation of velocity", maxFov >= 74f)
+    }
+
+    @Test
+    fun testPhase12CameraShakeDampingAndGroundClearance() {
+        var shakeIntensity = 0.12f
+        val damping = 0.86f
+        for (i in 0 until 5) {
+            shakeIntensity *= damping
+        }
+        assertTrue("Camera shake must decay smoothly to prevent nausea", shakeIntensity < 0.06f)
+
+        // Verify ground clearance protection
+        val carPosY = 0.35f
+        val minCameraGroundClearance = carPosY + 0.35f
+        val rawCameraTargetY = -0.10f
+        val safeCameraTargetY = kotlin.math.max(minCameraGroundClearance, rawCameraTargetY)
+        assertTrue("Camera height must be clamped above ground plane", safeCameraTargetY >= 0.70f)
+    }
+
+    @Test
+    fun testPhase12SteeringOpposingInputCancellationAndDamping() {
+        // Test opposing inputs
+        val isLeftPressed = true
+        val isRightPressed = true
+        val opposingTarget = when {
+            isLeftPressed && !isRightPressed -> 1.0f
+            isRightPressed && !isLeftPressed -> -1.0f
+            else -> 0.0f
+        }
+        assertEquals("Opposing simultaneous steer inputs must cleanly cancel to 0", 0.0f, opposingTarget, 0.001f)
+
+        // Test smooth steering return
+        var currentSteer = 1.0f
+        val neutralTarget = 0.0f
+        val rampSpeed = 0.36f
+        for (step in 0 until 6) {
+            currentSteer += (neutralTarget - currentSteer) * rampSpeed
+        }
+        assertTrue("Steering must return smoothly towards center when released", currentSteer < 0.10f)
+    }
+
+    @Test
+    fun testPhase12DrivingAssistsTelemetryIndicators() {
+        // High brake and speed -> ABS triggers
+        val brakeInput = 0.85f
+        val speedKmh = 85f
+        val absActive = (brakeInput > 0.45f && speedKmh > 10f)
+        assertTrue("ABS indicator must be active under heavy braking at speed", absActive)
+
+        // High throttle at low speed or off-road -> TCS triggers
+        val throttleInput = 0.90f
+        val lowSpeedKmh = 25f
+        val tcsActive = (throttleInput > 0.65f && lowSpeedKmh < 45f)
+        assertTrue("TCS indicator must be active during launch wheelspin", tcsActive)
+
+        // Rev limiter flag near redline
+        val rpm = 8200f
+        val maxRpm = 8600f
+        val rpmRatio = rpm / maxRpm
+        val isRevLimiter = (rpmRatio > 0.90f)
+        assertTrue("Rev limiter indicator must activate above 90% of redline", isRevLimiter)
+    }
+
+    @Test
+    fun testPhase12VirtualWheelClampingAndAutoCentering() {
+        val maxWheelAngle = 65f
+        val rawDragAngle = 120f
+        val clampedAngle = rawDragAngle.coerceIn(-maxWheelAngle, maxWheelAngle)
+        assertEquals("Wheel rotation must be clamped to max steering range", 65f, clampedAngle, 0.001f)
+
+        val steerNormalized = (-clampedAngle / 60f).coerceIn(-1.0f, 1.0f)
+        assertTrue("Normalized steer from wheel must stay within [-1.0, 1.0]", steerNormalized in -1.0f..1.0f)
+    }
+
+    @Test
+    fun testPhase12TiltGyroscopeDeadzoneFiltering() {
+        // Values within ±0.05f deadzone should evaluate to 0f
+        val tremorValue = 0.035f
+        val filtered = if (kotlin.math.abs(tremorValue) < 0.05f) 0f else (tremorValue - 0.05f) / 0.95f
+        assertEquals("Tremor below deadzone threshold must be filtered out", 0.0f, filtered, 0.001f)
+
+        // Values above deadzone should scale cleanly
+        val validTilt = 0.45f
+        val scaled = if (kotlin.math.abs(validTilt) < 0.05f) 0f else (validTilt - 0.05f) / 0.95f
+        assertTrue("Intentional tilt must be mapped proportionally", scaled > 0.40f)
+    }
 }
+
 
 

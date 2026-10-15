@@ -57,7 +57,12 @@ data class RaceTelemetryUiState(
     val isCountdownActive: Boolean = false,
     val boostAvailable: Boolean = true,
     val isPaused: Boolean = false,
-    val boostPercent: Float = 100f
+    val boostPercent: Float = 100f,
+    val isAbsActive: Boolean = false,
+    val isTcsActive: Boolean = false,
+    val isRevLimiter: Boolean = false,
+    val trackProgressPercent: Float = 0f,
+    val activeCameraView: CameraView = CameraView.CHASE_NEAR
 )
 
 class GameViewModel(application: Application) : AndroidViewModel(application) {
@@ -79,6 +84,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _telemetry = MutableStateFlow(RaceTelemetryUiState())
     val telemetry: StateFlow<RaceTelemetryUiState> = _telemetry.asStateFlow()
+
+    private val _isGamePaused = MutableStateFlow(false)
+    val isGamePausedState: StateFlow<Boolean> = _isGamePaused.asStateFlow()
+    var isGamePaused: Boolean
+        get() = _isGamePaused.value
+        private set(value) { _isGamePaused.value = value }
 
     private val _selectedCar = MutableStateFlow(CarDefinition.ALL_CARS[0])
     val selectedCar: StateFlow<CarDefinition> = _selectedCar.asStateFlow()
@@ -325,7 +336,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateGamePhysics(dt: Float) {
-        if (_currentScreen.value != GameScreen.RACE) {
+        if (_currentScreen.value != GameScreen.RACE || _isGamePaused.value) {
             audioEngine.throttleLoad = 0f
             audioEngine.tireSlip = 0f
             audioEngine.turboBoost = 0f
@@ -615,6 +626,31 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun updateTelemetryState() {
         val timing = raceTiming
+        val rpmRatio = (playerVehicle.powertrain.currentRpm / playerVehicle.powertrain.redlineRpm).coerceIn(0f, 1f)
+        val absActive = (playerVehicle.brake > 0.45f && playerVehicle.speedKmh > 10f)
+        val tcsActive = (playerVehicle.throttle > 0.65f && (playerVehicle.speedKmh < 45f || playerVehicle.isOffRoad))
+
+        val track = renderer?.trackModel
+        val waypoints = track?.waypoints ?: emptyList()
+        val lapProgress = if (waypoints.isNotEmpty()) {
+            val count = waypoints.size
+            var closestIdx = 0
+            var minDistSq = Float.MAX_VALUE
+            val px = playerVehicle.position.x
+            val pz = playerVehicle.position.z
+            for (i in 0 until count) {
+                val wp = waypoints[i]
+                val dx = px - wp.x
+                val dz = pz - wp.z
+                val d2 = dx * dx + dz * dz
+                if (d2 < minDistSq) {
+                    minDistSq = d2
+                    closestIdx = i
+                }
+            }
+            (closestIdx.toFloat() / count.toFloat()) * 100f
+        } else 0f
+
         _telemetry.value = RaceTelemetryUiState(
             speedKmh = playerVehicle.speedKmh,
             rpm = playerVehicle.powertrain.currentRpm,
@@ -637,7 +673,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             countdownNumber = timing.countdownSec.toInt() + 1,
             isCountdownActive = timing.isCountdownActive,
             boostAvailable = boostEnergy > 20f,
-            boostPercent = boostEnergy
+            isPaused = _isGamePaused.value,
+            boostPercent = boostEnergy,
+            isAbsActive = absActive,
+            isTcsActive = tcsActive,
+            isRevLimiter = rpmRatio > 0.90f,
+            trackProgressPercent = lapProgress,
+            activeCameraView = _cameraView.value
         )
     }
 
@@ -682,6 +724,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
         _cameraView.value = next
         renderer?.currentCameraView = next
+        updateTelemetryState()
     }
 
     fun openGarage() {
@@ -707,15 +750,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun buySelectedCar(): Boolean {
         val car = _selectedCar.value
+        if (dataManager.unlockedCars.contains(car.id)) {
+            return true // Already owned, prevent double charge
+        }
         val cost = car.basePrice
-        if (dataManager.credits >= cost) {
-            dataManager.credits -= cost
-            _playerCredits.value = dataManager.credits
-
-            val updated = dataManager.unlockedCars + car.id
-            dataManager.unlockedCars = updated
-            _unlockedCarIds.value = updated
-            return true
+        if (dataManager.canAfford(cost)) {
+            if (dataManager.deductCredits(cost)) {
+                _playerCredits.value = dataManager.credits
+                val updated = dataManager.unlockedCars + car.id
+                dataManager.unlockedCars = updated
+                _unlockedCarIds.value = updated
+                return true
+            }
         }
         return false
     }
@@ -741,7 +787,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val current = dataManager.getCarUpgrades(car.id)
         val cost = 3500
 
-        if (dataManager.credits < cost) return false
+        if (!dataManager.canAfford(cost)) return false
 
         val updated = when (partType) {
             "ENGINE" -> if (current.engineStage < 3) current.copy(engineStage = current.engineStage + 1) else return false
@@ -751,12 +797,53 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             else -> return false
         }
 
-        dataManager.credits -= cost
-        _playerCredits.value = dataManager.credits
-        dataManager.saveCarUpgrades(car.id, updated)
-        _carUpgrades.value = updated
-        applyCarConfiguration(car)
-        return true
+        if (dataManager.deductCredits(cost)) {
+            _playerCredits.value = dataManager.credits
+            dataManager.saveCarUpgrades(car.id, updated)
+            _carUpgrades.value = updated
+            applyCarConfiguration(car)
+            return true
+        }
+        return false
+    }
+
+    // Phase 11 — 3D Showroom Camera Controls
+    fun resetShowroomCamera() {
+        renderer?.resetShowroomCamera()
+    }
+
+    fun toggleAutoRotate(): Boolean {
+        return renderer?.toggleAutoRotate() ?: false
+    }
+
+    fun setCameraPreset(preset: String) {
+        renderer?.setCameraPreset(preset)
+    }
+
+    // Phase 11 — Derived Telemetry and Performance Metrics
+    fun getVehicleTopSpeed(car: CarDefinition, upgrades: CarUpgradeState): Float {
+        return car.topSpeedKmh + (upgrades.engineStage * 6.5f) + (upgrades.weightReduction * 3.0f)
+    }
+
+    fun getVehicleTorque(car: CarDefinition, upgrades: CarUpgradeState): Float {
+        return car.baseTorqueNm + (upgrades.engineStage * 65f)
+    }
+
+    fun getVehicleWeight(car: CarDefinition, upgrades: CarUpgradeState): Float {
+        return (car.massKg - upgrades.weightReduction * 55f).coerceAtLeast(950f)
+    }
+
+    fun getVehicleGrip(upgrades: CarUpgradeState): Float {
+        return 1.25f + (upgrades.tireStage * 0.12f)
+    }
+
+    fun getVehicleZeroToHundred(car: CarDefinition, upgrades: CarUpgradeState): Float {
+        val base0100 = when (car.id) {
+            "apex_monza_v10" -> 2.6f
+            "apex_spirit_86" -> 4.4f
+            else -> 3.1f
+        }
+        return (base0100 - (upgrades.engineStage * 0.18f) - (upgrades.weightReduction * 0.10f) - (upgrades.tireStage * 0.15f)).coerceAtLeast(1.9f)
     }
 
     fun navigateTo(screen: GameScreen) {
@@ -833,17 +920,46 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _unlockedCarIds.value = allIds
     }
 
-    var isGamePaused: Boolean = false
-        private set
+    fun pauseRace() {
+        _isGamePaused.value = true
+        resetDriverInputs()
+        audioEngine.throttleLoad = 0f
+        audioEngine.tireSlip = 0f
+        audioEngine.turboBoost = 0f
+        audioEngine.stop()
+        updateTelemetryState()
+    }
+
+    fun resumeRace() {
+        _isGamePaused.value = false
+        audioEngine.isMuted = dataManager.soundMuted
+        audioEngine.masterVolume = dataManager.soundVolume
+        audioEngine.start()
+        updateTelemetryState()
+    }
+
+    fun restartRace() {
+        _isGamePaused.value = false
+        startRace(_activeRaceMode.value)
+    }
+
+    fun setCameraView(view: CameraView) {
+        _cameraView.value = view
+        renderer?.currentCameraView = view
+        updateTelemetryState()
+    }
 
     fun onPause() {
-        isGamePaused = true
+        _isGamePaused.value = true
         resetDriverInputs()
         audioEngine.stop()
+        updateTelemetryState()
     }
 
     fun onResume() {
-        isGamePaused = false
+        if (_currentScreen.value != GameScreen.RACE) {
+            _isGamePaused.value = false
+        }
         audioEngine.isMuted = dataManager.soundMuted
         audioEngine.masterVolume = dataManager.soundVolume
         audioEngine.start()

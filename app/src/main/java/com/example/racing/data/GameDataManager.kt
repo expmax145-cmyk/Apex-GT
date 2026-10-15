@@ -15,7 +15,34 @@ class GameDataManager(context: Context) {
         set(value) = prefs.edit().putInt("credits", value).apply()
 
     fun grantDevelopmentCredits(amount: Int = 999999) {
-        credits = amount
+        if (com.example.BuildConfig.DEBUG) {
+            credits = amount
+        }
+    }
+
+    val isDevUnlimitedFundsActive: Boolean
+        get() = com.example.BuildConfig.DEBUG && prefs.getBoolean("dev_unlimited_funds", true)
+
+    fun setDevUnlimitedFundsActive(active: Boolean) {
+        if (com.example.BuildConfig.DEBUG) {
+            prefs.edit().putBoolean("dev_unlimited_funds", active).apply()
+        }
+    }
+
+    fun canAfford(cost: Int): Boolean {
+        if (com.example.BuildConfig.DEBUG && isDevUnlimitedFundsActive) return true
+        return credits >= cost
+    }
+
+    fun deductCredits(cost: Int): Boolean {
+        if (com.example.BuildConfig.DEBUG && isDevUnlimitedFundsActive) {
+            return true
+        }
+        if (credits >= cost) {
+            credits -= cost
+            return true
+        }
+        return false
     }
 
     var selectedCarId: String

@@ -88,7 +88,13 @@ fun ApexRacingApp(
     // Handle Android system back button
     BackHandler(enabled = currentScreen != GameScreen.MAIN_MENU) {
         when (currentScreen) {
-            GameScreen.RACE -> viewModel.navigateTo(GameScreen.MAIN_MENU)
+            GameScreen.RACE -> {
+                if (viewModel.isGamePaused) {
+                    viewModel.resumeRace()
+                } else {
+                    viewModel.pauseRace()
+                }
+            }
             GameScreen.GARAGE -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.SETTINGS -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.RACE_SUMMARY -> viewModel.navigateTo(GameScreen.MAIN_MENU)

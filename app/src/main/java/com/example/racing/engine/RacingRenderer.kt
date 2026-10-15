@@ -10,6 +10,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.sin
 
 class RacingRenderer(
@@ -63,6 +64,8 @@ class RacingRenderer(
     var playerPaintColor: FloatArray = floatArrayOf(0.95f, 0.15f, 0.20f, 1.0f)
     var playerPaintFinish: PaintFinishType = PaintFinishType.METALLIC
     var graphicsQuality: String = "HIGH"
+    var timeOfDay: com.example.racing.model.TimeOfDay = com.example.racing.model.TimeOfDay.DAY
+    var weatherCondition: com.example.racing.model.WeatherCondition = com.example.racing.model.WeatherCondition.CLEAR
 
     private var currentCarId: String = "apex_valkyrie"
     private var currentTrackId: TrackId = TrackId.GRAND_PRIX
@@ -92,6 +95,8 @@ class RacingRenderer(
     private val targetCamPos = Vector3f()
     private val targetLookAt = Vector3f()
     private var currentFov: Float = 60f
+    var cameraShakeIntensity: Float = 0f
+    private var cameraShakeTime: Float = 0f
 
     private var cachedPlayerMaterial: Material? = null
     private var cachedPlayerPaintColor: FloatArray? = null
@@ -398,17 +403,20 @@ class RacingRenderer(
 
     private fun setupShowroomCamera() {
         val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
-        projectionMatrix.identity().perspective(55f, aspect, 0.2f, 1200f)
+        projectionMatrix.identity().perspective(48f, aspect, 0.2f, 1200f)
+
+        showroomZoomDistance = showroomZoomDistance.coerceIn(3.2f, 8.5f)
+        showroomElevationDeg = showroomElevationDeg.coerceIn(5f, 52f)
 
         val radOrbit = (showroomOrbitAngleDeg * (PI / 180.0)).toFloat()
         val radElev = (showroomElevationDeg * (PI / 180.0)).toFloat()
 
         val camX = showroomZoomDistance * cos(radElev) * sin(radOrbit)
-        val camY = showroomZoomDistance * sin(radElev) + 0.6f
+        val camY = showroomZoomDistance * sin(radElev) + 0.45f
         val camZ = showroomZoomDistance * cos(radElev) * cos(radOrbit)
 
         currentCamPos.set(camX, camY, camZ)
-        currentCamTarget.set(0f, 0.5f, 0f)
+        currentCamTarget.set(0f, 0.45f, 0f)
 
         viewMatrix.identity().lookAt(
             currentCamPos.x, currentCamPos.y, currentCamPos.z,
@@ -420,18 +428,19 @@ class RacingRenderer(
     private fun setupRacingCamera() {
         val carPos = playerVehicle.position
         val yawRad = playerVehicle.headingAngleRad
+        val pitchRad = playerVehicle.pitchAngleRad
         val speedKmh = playerVehicle.speedKmh
 
-        // 1. Dynamic Speed-Dependent Field of View (FOV)
+        // 1. Dynamic Speed-Dependent Field of View (FOV) with boost kick
         val baseFov = when (currentCameraView) {
-            CameraView.HOOD_BUMPER -> 66f
+            CameraView.HOOD_BUMPER -> 68f
             CameraView.COCKPIT -> 63f
             CameraView.CHASE_FAR -> 64f
             CameraView.CHASE_NEAR -> 60f
         }
-        val speedFovDelta = (speedKmh / 350f).coerceIn(0f, 1f) * 9f
-        val boostFovDelta = if (playerVehicle.boostActive) 4.5f else 0f
-        val targetFov = (baseFov + speedFovDelta + boostFovDelta).coerceIn(58f, 80f)
+        val speedFovDelta = (speedKmh / 350f).coerceIn(0f, 1f) * 8.5f
+        val boostFovDelta = if (playerVehicle.boostActive) 5.5f else 0f
+        val targetFov = (baseFov + speedFovDelta + boostFovDelta).coerceIn(58f, 82f)
         currentFov += (targetFov - currentFov) * 0.14f
 
         val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
@@ -445,30 +454,33 @@ class RacingRenderer(
         val speedLag = (speedKmh / 350f).coerceIn(0f, 1f) * 0.75f
 
         // Dynamic look-ahead: looks further down track as speed climbs
-        val lookaheadDist = (12f + (speedKmh * 0.08f)).coerceIn(12f, 34f)
+        val lookaheadDist = (14f + (speedKmh * 0.085f)).coerceIn(14f, 36f)
 
         // Subtle steer bias pans the camera look-target into the apex of corners
         val steerBias = playerVehicle.currentSteerAngleRad * 2.2f
+
+        // Pitch compensation for hill crests, slopes, elevation changes
+        val pitchOffset = sin(pitchRad) * (if (currentCameraView == CameraView.CHASE_FAR) 2.8f else 1.8f)
 
         when (currentCameraView) {
             CameraView.CHASE_NEAR -> {
                 targetCamPos.set(
                     carPos.x - sinYaw * (5.2f + speedLag),
-                    carPos.y + 1.85f + speedLag * 0.18f,
+                    max(carPos.y + 0.35f, carPos.y + 1.85f + speedLag * 0.18f + pitchOffset * 0.6f),
                     carPos.z - cosYaw * (5.2f + speedLag)
                 )
             }
             CameraView.CHASE_FAR -> {
                 targetCamPos.set(
-                    carPos.x - sinYaw * (7.5f + speedLag * 1.1f),
-                    carPos.y + 2.85f + speedLag * 0.25f,
-                    carPos.z - cosYaw * (7.5f + speedLag * 1.1f)
+                    carPos.x - sinYaw * (7.6f + speedLag * 1.1f),
+                    max(carPos.y + 0.55f, carPos.y + 2.85f + speedLag * 0.25f + pitchOffset * 0.8f),
+                    carPos.z - cosYaw * (7.6f + speedLag * 1.1f)
                 )
             }
             CameraView.HOOD_BUMPER -> {
                 targetCamPos.set(
                     carPos.x + sinYaw * 1.65f,
-                    carPos.y + 0.68f,
+                    carPos.y + 0.68f + pitchOffset * 0.3f,
                     carPos.z + cosYaw * 1.65f
                 )
             }
@@ -478,7 +490,7 @@ class RacingRenderer(
                 val worldOffsetZ = -driverOffsetX * sinYaw
                 targetCamPos.set(
                     carPos.x - sinYaw * 0.08f + worldOffsetX,
-                    carPos.y + 0.96f,
+                    carPos.y + 0.96f + pitchOffset * 0.2f,
                     carPos.z - cosYaw * 0.08f + worldOffsetZ
                 )
             }
@@ -490,7 +502,7 @@ class RacingRenderer(
                 val lookCos = cos(yawRad + steerBias * 0.15f)
                 targetLookAt.set(
                     carPos.x + lookSin * 28f,
-                    carPos.y + 0.62f,
+                    carPos.y + 0.62f + sin(pitchRad) * 6f,
                     carPos.z + lookCos * 28f
                 )
             }
@@ -502,7 +514,7 @@ class RacingRenderer(
                 val lookCos = cos(yawRad + steerBias * 0.20f)
                 targetLookAt.set(
                     carPos.x + lookSin * 30f + worldOffsetX,
-                    carPos.y + 0.85f,
+                    carPos.y + 0.85f + sin(pitchRad) * 7f,
                     carPos.z + lookCos * 30f + worldOffsetZ
                 )
             }
@@ -512,21 +524,21 @@ class RacingRenderer(
                 val lookCos = cos(yawRad + steerBias * 0.22f)
                 targetLookAt.set(
                     carPos.x + lookSin * lookaheadDist,
-                    carPos.y + 1.12f,
+                    carPos.y + 1.12f + sin(pitchRad) * (lookaheadDist * 0.4f),
                     carPos.z + lookCos * lookaheadDist
                 )
             }
         }
 
         val smoothFactor = when (currentCameraView) {
-            CameraView.HOOD_BUMPER -> 0.75f
-            CameraView.COCKPIT -> 0.70f
+            CameraView.HOOD_BUMPER -> 0.78f
+            CameraView.COCKPIT -> 0.72f
             CameraView.CHASE_NEAR -> 0.24f
             CameraView.CHASE_FAR -> 0.18f
         }
 
         // Prevent wild camera jumps across the map when resetting or teleporting
-        if (currentCamPos.distanceTo(targetCamPos) > 50f) {
+        if (currentCamPos.distanceTo(targetCamPos) > 45f) {
             currentCamPos.set(targetCamPos)
             currentCamTarget.set(targetLookAt)
         } else {
@@ -534,9 +546,26 @@ class RacingRenderer(
             currentCamTarget.lerpTo(targetLookAt, smoothFactor)
         }
 
+        // 3. Screen Shake / Vibration Dynamics
+        if (playerVehicle.isOffRoad && speedKmh > 18f) {
+            cameraShakeIntensity = max(cameraShakeIntensity, 0.045f)
+        }
+        if (playerVehicle.hasCollidedBarrier && speedKmh > 10f) {
+            cameraShakeIntensity = max(cameraShakeIntensity, (speedKmh / 150f).coerceIn(0.06f, 0.14f))
+        }
+        if (speedKmh > 240f || playerVehicle.boostActive) {
+            cameraShakeIntensity = max(cameraShakeIntensity, 0.016f)
+        }
+
+        cameraShakeTime += 0.38f
+        val shakeX = sin(cameraShakeTime * 42f) * cameraShakeIntensity
+        val shakeY = cos(cameraShakeTime * 51f) * cameraShakeIntensity * 0.75f
+        val shakeZ = sin(cameraShakeTime * 33f) * cameraShakeIntensity * 0.4f
+        cameraShakeIntensity *= 0.86f
+
         viewMatrix.identity().lookAt(
-            currentCamPos.x, currentCamPos.y, currentCamPos.z,
-            currentCamTarget.x, currentCamTarget.y, currentCamTarget.z,
+            currentCamPos.x + shakeX, currentCamPos.y + shakeY, currentCamPos.z + shakeZ,
+            currentCamTarget.x + shakeX * 0.5f, currentCamTarget.y + shakeY * 0.5f, currentCamTarget.z + shakeZ * 0.5f,
             0f, 1f, 0f
         )
     }
@@ -547,13 +576,14 @@ class RacingRenderer(
         shader: Shader,
         carMaterial: Material
     ) {
-        val carPos = vehicle.position
-        val headingDeg = (vehicle.headingAngleRad * (180f / PI.toFloat()))
-        val rollDeg = (vehicle.rollAngleRad * (180f / PI.toFloat()))
-        val pitchDeg = (vehicle.pitchAngleRad * (180f / PI.toFloat()))
+        val isShowroomCar = isShowroomMode && (vehicle === playerVehicle)
+        val carPos = if (isShowroomCar) Vector3f(0f, 0.35f, 0f) else vehicle.position
+        val headingDeg = if (isShowroomCar) 0f else (vehicle.headingAngleRad * (180f / PI.toFloat()))
+        val rollDeg = if (isShowroomCar) 0f else (vehicle.rollAngleRad * (180f / PI.toFloat()))
+        val pitchDeg = if (isShowroomCar) 0f else (vehicle.pitchAngleRad * (180f / PI.toFloat()))
 
-        // A. Contact Shadow Quad (LOW = none, MEDIUM = player only, HIGH = all vehicles)
-        val shouldDrawShadow = when (graphicsQuality) {
+        // A. Contact Shadow Quad (In Showroom always draw; in race check graphicsQuality)
+        val shouldDrawShadow = if (isShowroomCar) true else when (graphicsQuality) {
             "LOW" -> false
             "MEDIUM" -> (vehicle === playerVehicle)
             else -> true
@@ -578,26 +608,27 @@ class RacingRenderer(
         shader.setMat4("u_ModelMatrix", modelMatrix.values)
         shader.setMaterial(carMaterial)
 
-        val brakeIntensity = if (vehicle.brake > 0.08f) vehicle.brake.coerceIn(0.6f, 1.0f) else 0.0f
+        val brakeIntensity = if (isShowroomCar) 0.0f else (if (vehicle.brake > 0.08f) vehicle.brake.coerceIn(0.6f, 1.0f) else 0.0f)
         shader.setFloat("u_BrakeIntensity", brakeIntensity)
 
         car.bodyMesh.draw()
 
         // C. Render Wheels (4 corners)
-        val steerDeg = (vehicle.currentSteerAngleRad * (180f / PI.toFloat()))
-        val spinDeg = (vehicle.wheelRotationAngle * (180f / PI.toFloat()))
+        val steerDeg = if (isShowroomCar) 8.0f else (vehicle.currentSteerAngleRad * (180f / PI.toFloat()))
+        val spinDeg = if (isShowroomCar) 0.0f else (vehicle.wheelRotationAngle * (180f / PI.toFloat()))
 
         for (i in 0 until 4) {
             val wp = car.wheelPositions[i]
             val isFront = (i < 2)
             val isLeft = (i % 2 == 0)
+            val suspComp = if (isShowroomCar) 0.0f else vehicle.suspensionCompression[i]
 
             reusableWheelMatrix.identity()
                 .translate(carPos.x, carPos.y, carPos.z)
                 .rotate(headingDeg, 0f, 1f, 0f)
                 .rotate(rollDeg, 0f, 0f, 1f)
                 .rotate(pitchDeg, 1f, 0f, 0f)
-                .translate(wp.x, wp.y + vehicle.suspensionCompression[i], wp.z)
+                .translate(wp.x, wp.y + suspComp, wp.z)
 
             if (isFront) {
                 reusableWheelMatrix.rotate(steerDeg, 0f, 1f, 0f)
