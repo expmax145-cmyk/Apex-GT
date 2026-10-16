@@ -218,5 +218,111 @@ class ExampleRobolectricTest {
         assertTrue(testAI.vehicle.throttle >= 0f)
         assertTrue(testAI.vehicle.steerInput in -1.0f..1.0f)
     }
+
+    @Test
+    fun `verify garage navigation, showroom mode toggling and camera presets`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.racing.ui.GameViewModel(app)
+
+        // Navigate to Garage
+        vm.openGarage()
+        assertEquals(com.example.racing.ui.GameScreen.GARAGE, vm.currentScreen.value)
+        val r = vm.renderer
+        assertNotNull(r)
+        assertTrue("Showroom mode must be active in Garage", r!!.isShowroomMode)
+        org.junit.Assert.assertFalse("Main menu mode must be disabled in Garage", r.isMainMenuMode)
+
+        // Verify camera angle presets
+        vm.setCameraPreset("HERO_3_4")
+        assertEquals(45f, r.showroomOrbitAngleDeg, 0.1f)
+        assertEquals(16f, r.showroomElevationDeg, 0.1f)
+
+        vm.setCameraPreset("SIDE")
+        assertEquals(90f, r.showroomOrbitAngleDeg, 0.1f)
+
+        vm.setCameraPreset("REAR_AERO")
+        assertEquals(155f, r.showroomOrbitAngleDeg, 0.1f)
+
+        vm.setCameraPreset("FRONT_DETAIL")
+        assertEquals(15f, r.showroomOrbitAngleDeg, 0.1f)
+
+        // Reset camera
+        vm.resetShowroomCamera()
+        assertEquals(45f, r.showroomOrbitAngleDeg, 0.1f)
+        assertEquals(16f, r.showroomElevationDeg, 0.1f)
+        assertEquals(5.4f, r.showroomZoomDistance, 0.1f)
+    }
+
+    @Test
+    fun `verify fleet vehicle selection and tuning upgrade physics application`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.racing.ui.GameViewModel(app)
+
+        // Test vehicle switching to Monza V10
+        val monza = com.example.racing.model.CarDefinition.ALL_CARS.first { it.id == "apex_monza_v10" }
+        vm.selectCar(monza)
+        assertEquals(monza.id, vm.selectedCar.value.id)
+        assertEquals(monza.id, vm.dataManager.selectedCarId)
+
+        // Test performance upgrade on ECU with realistic economy deduction
+        vm.dataManager.setDevUnlimitedFundsActive(false)
+        vm.dataManager.credits = 10000
+        val initialTopSpeed = vm.getVehicleTopSpeed(monza, vm.carUpgrades.value)
+        val initialTorque = vm.getVehicleTorque(monza, vm.carUpgrades.value)
+
+        val upgraded = vm.upgradePart("ENGINE")
+        assertTrue("Upgrading engine stage must succeed", upgraded)
+        assertEquals(1, vm.carUpgrades.value.engineStage)
+        assertEquals(6500, vm.playerCredits.value)
+
+        val upgradedTopSpeed = vm.getVehicleTopSpeed(monza, vm.carUpgrades.value)
+        val upgradedTorque = vm.getVehicleTorque(monza, vm.carUpgrades.value)
+        assertTrue(upgradedTopSpeed > initialTopSpeed)
+        assertTrue(upgradedTorque > initialTorque)
+        assertEquals(initialTorque + 65f, upgradedTorque, 0.1f)
+    }
+
+    @Test
+    fun `verify track mesh procedural generation across Grand Prix, Alpine Pass, and Neon Metropolis`() {
+        val gpTrack = com.example.racing.engine.TrackMeshBuilder.buildTrack(com.example.racing.model.TrackId.GRAND_PRIX)
+        assertNotNull(gpTrack)
+        assertTrue("Grand Prix must have valid waypoints", gpTrack.waypoints.isNotEmpty())
+        assertTrue("Grand Prix must have 3 sector checkpoints", gpTrack.sectorCheckpoints.size == 3)
+        assertNotNull(gpTrack.roadMesh)
+        assertNotNull(gpTrack.kerbMesh)
+        assertNotNull(gpTrack.barrierMesh)
+        assertNotNull(gpTrack.environmentMesh)
+        assertNotNull(gpTrack.gantryMesh)
+        assertNotNull(gpTrack.skyMesh)
+        org.junit.Assert.assertFalse("Grand Prix is dry road", gpTrack.lightingConfig.isWetRoad)
+
+        val alpineTrack = com.example.racing.engine.TrackMeshBuilder.buildTrack(com.example.racing.model.TrackId.ALPINE_PASS)
+        assertNotNull(alpineTrack)
+        assertTrue("Alpine Pass must have valid waypoints", alpineTrack.waypoints.isNotEmpty())
+        assertTrue("Alpine Pass must feature mountain elevation", alpineTrack.waypoints.any { it.y > 10f })
+        assertNotNull(alpineTrack.roadMesh)
+        assertNotNull(alpineTrack.environmentMesh)
+
+        val neonTrack = com.example.racing.engine.TrackMeshBuilder.buildTrack(com.example.racing.model.TrackId.NEON_METROPOLIS)
+        assertNotNull(neonTrack)
+        assertTrue("Neon Metropolis must have valid waypoints", neonTrack.waypoints.isNotEmpty())
+        assertTrue("Neon Metropolis is wet night road", neonTrack.lightingConfig.isWetRoad)
+        assertNotNull(neonTrack.roadMesh)
+        assertNotNull(neonTrack.environmentMesh)
+    }
+
+    @Test
+    fun `verify track selection updates renderer and physics waypoints`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.racing.ui.GameViewModel(app)
+
+        vm.selectTrack(com.example.racing.model.TrackId.ALPINE_PASS)
+        assertEquals(com.example.racing.model.TrackId.ALPINE_PASS, vm.selectedTrack.value)
+        assertEquals(com.example.racing.model.TrackId.ALPINE_PASS, vm.dataManager.selectedTrackId)
+
+        vm.selectTrack(com.example.racing.model.TrackId.NEON_METROPOLIS)
+        assertEquals(com.example.racing.model.TrackId.NEON_METROPOLIS, vm.selectedTrack.value)
+        assertEquals(com.example.racing.model.TrackId.NEON_METROPOLIS, vm.dataManager.selectedTrackId)
+    }
 }
 

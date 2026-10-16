@@ -150,7 +150,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         setupAICompetitors()
 
         renderer = RacingRenderer(playerVehicle, aiOpponents).apply {
-            isShowroomMode = false
+            isShowroomMode = true
+            isMainMenuMode = true
+            autoRotateShowroom = true
             playerPaintColor = getActiveColor()
             playerPaintFinish = dataManager.getCarPaintFinish(savedCar.id)
             graphicsQuality = dataManager.graphicsPreset
@@ -255,6 +257,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _activeRaceMode.value = mode
         _currentScreen.value = GameScreen.RACE
         renderer?.isShowroomMode = false
+        renderer?.isMainMenuMode = false
 
         renderer?.setTrack(_selectedTrack.value)
         renderer?.setCar(_selectedCar.value.id)
@@ -727,12 +730,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openGarage() {
-        resetDriverInputs()
-        _currentScreen.value = GameScreen.GARAGE
-        renderer?.isShowroomMode = true
-        renderer?.setCar(_selectedCar.value.id)
-        renderer?.playerPaintColor = getActiveColor()
-        renderer?.playerPaintFinish = _carPaintFinish.value
+        navigateTo(GameScreen.GARAGE)
+        renderer?.resetShowroomCamera()
     }
 
     fun selectCar(car: CarDefinition) {
@@ -848,10 +847,25 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun navigateTo(screen: GameScreen) {
         resetDriverInputs()
         _currentScreen.value = screen
-        if (screen == GameScreen.GARAGE) {
-            renderer?.isShowroomMode = true
-        } else {
-            renderer?.isShowroomMode = false
+        when (screen) {
+            GameScreen.MAIN_MENU -> {
+                renderer?.isShowroomMode = true
+                renderer?.isMainMenuMode = true
+                renderer?.autoRotateShowroom = true
+            }
+            GameScreen.GARAGE -> {
+                renderer?.isShowroomMode = true
+                renderer?.isMainMenuMode = false
+                renderer?.autoRotateShowroom = false
+                renderer?.setCar(_selectedCar.value.id)
+                renderer?.playerPaintColor = getActiveColor()
+                renderer?.playerPaintFinish = _carPaintFinish.value
+            }
+            else -> {
+                renderer?.isShowroomMode = false
+                renderer?.isMainMenuMode = false
+                renderer?.autoRotateShowroom = false
+            }
         }
     }
 

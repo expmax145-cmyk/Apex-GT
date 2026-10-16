@@ -19,6 +19,7 @@ class RacingRenderer(
 ) : GLSurfaceView.Renderer {
 
     var isShowroomMode: Boolean = false
+    var isMainMenuMode: Boolean = false
     var showroomOrbitAngleDeg: Float = 45f
     var showroomElevationDeg: Float = 16f
     var showroomZoomDistance: Float = 5.4f
@@ -211,7 +212,8 @@ class RacingRenderer(
             activeShader.setFloat("u_HeadlightIntensity", 0.0f)
 
             if (autoRotateShowroom) {
-                showroomOrbitAngleDeg = (showroomOrbitAngleDeg + 0.30f) % 360f
+                val rotateSpeed = if (isMainMenuMode) 0.18f else 0.30f
+                showroomOrbitAngleDeg = (showroomOrbitAngleDeg + rotateSpeed) % 360f
             }
             setupShowroomCamera()
         } else {
@@ -403,7 +405,8 @@ class RacingRenderer(
 
     private fun setupShowroomCamera() {
         val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
-        projectionMatrix.identity().perspective(48f, aspect, 0.2f, 1200f)
+        val fov = if (isMainMenuMode) 43f else 48f
+        projectionMatrix.identity().perspective(fov, aspect, 0.2f, 1200f)
 
         showroomZoomDistance = showroomZoomDistance.coerceIn(3.2f, 8.5f)
         showroomElevationDeg = showroomElevationDeg.coerceIn(5f, 52f)
@@ -416,7 +419,13 @@ class RacingRenderer(
         val camZ = showroomZoomDistance * cos(radElev) * cos(radOrbit)
 
         currentCamPos.set(camX, camY, camZ)
-        currentCamTarget.set(0f, 0.45f, 0f)
+        if (isMainMenuMode) {
+            // Target slightly offset so vehicle is framed cleanly in the spacious right hero area
+            currentCamTarget.set(-0.32f, 0.40f, 0f)
+        } else {
+            // Target slightly lower so vehicle sits proud in the upper viewport above the bottom dock
+            currentCamTarget.set(0f, 0.28f, 0f)
+        }
 
         viewMatrix.identity().lookAt(
             currentCamPos.x, currentCamPos.y, currentCamPos.z,

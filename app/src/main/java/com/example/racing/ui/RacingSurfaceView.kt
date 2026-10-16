@@ -40,7 +40,8 @@ fun RacingSurfaceView(
             }
 
             override fun onTouchEvent(event: MotionEvent): Boolean {
-                if (viewModel.currentScreen.value == GameScreen.GARAGE) {
+                val screen = viewModel.currentScreen.value
+                if (screen == GameScreen.GARAGE || screen == GameScreen.MAIN_MENU) {
                     val r = viewModel.renderer ?: return super.onTouchEvent(event)
                     
                     if (event.pointerCount >= 2) {
@@ -73,6 +74,9 @@ fun RacingSurfaceView(
                             lastTapTime = now
                             lastTouchX = event.x
                             lastTouchY = event.y
+                            if (screen == GameScreen.MAIN_MENU) {
+                                r.autoRotateShowroom = false
+                            }
                         }
                         MotionEvent.ACTION_MOVE -> {
                             val dx = event.x - lastTouchX
@@ -81,6 +85,11 @@ fun RacingSurfaceView(
                             r.showroomElevationDeg = (r.showroomElevationDeg - dy * 0.22f).coerceIn(5f, 52f)
                             lastTouchX = event.x
                             lastTouchY = event.y
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (screen == GameScreen.MAIN_MENU) {
+                                r.autoRotateShowroom = true
+                            }
                         }
                     }
                     return true

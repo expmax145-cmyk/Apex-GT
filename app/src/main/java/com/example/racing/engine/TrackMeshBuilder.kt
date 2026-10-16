@@ -7,10 +7,13 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Procedural Race Circuit Mesh & Environmental World Generator for Apex GT — Phase 9.
+ * Procedural Race Circuit Mesh & Environmental World Generator for Apex GT — Phase 16.
+ *
  * Synthesizes high-fidelity 3D track surfaces, FIA-standard kerbs, Armco barriers,
- * tire walls, rich immersive trackside environments, and panoramic sky domes for
- * Grand Prix Circuit, Alpine Pass, and Neon Metropolis.
+ * tire walls, rich immersive trackside environments, and panoramic sky domes for:
+ * 1. Apex GP Circuit (Professional Coastal Motorsport Venue)
+ * 2. Alpine Mountain Pass (High-Altitude Mountain Ascent & Switchbacks)
+ * 3. Night Neon Metropolis (Night City Boulevard & Urban Street Circuit)
  */
 object TrackMeshBuilder {
 
@@ -101,7 +104,7 @@ object TrackMeshBuilder {
         )
 
         val road = generateRoadMesh(splinePoints, trackType = TrackType.GRAND_PRIX)
-        val kerbs = generateKerbMesh(splinePoints)
+        val kerbs = generateKerbMesh(splinePoints, trackType = TrackType.GRAND_PRIX)
         val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.GRAND_PRIX)
         val env = generateGrandPrixSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
@@ -145,7 +148,7 @@ object TrackMeshBuilder {
         )
 
         val road = generateRoadMesh(splinePoints, trackType = TrackType.ALPINE_PASS)
-        val kerbs = generateKerbMesh(splinePoints)
+        val kerbs = generateKerbMesh(splinePoints, trackType = TrackType.ALPINE_PASS)
         val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.ALPINE_PASS)
         val env = generateAlpineSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
@@ -192,7 +195,7 @@ object TrackMeshBuilder {
         )
 
         val road = generateRoadMesh(splinePoints, trackType = TrackType.NEON_METROPOLIS)
-        val kerbs = generateKerbMesh(splinePoints)
+        val kerbs = generateKerbMesh(splinePoints, trackType = TrackType.NEON_METROPOLIS)
         val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.NEON_METROPOLIS)
         val env = generateMetropolisSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
@@ -334,8 +337,8 @@ object TrackMeshBuilder {
         val asphaltDry = floatArrayOf(0.24f, 0.25f, 0.27f)
         val asphaltWet = floatArrayOf(0.12f, 0.13f, 0.15f)
         val asphaltMountain = floatArrayOf(0.28f, 0.27f, 0.26f)
-        val racingGroove = floatArrayOf(0.13f, 0.14f, 0.15f)
-        val skidMarkDark = floatArrayOf(0.07f, 0.07f, 0.08f)
+        val racingGroove = floatArrayOf(0.12f, 0.13f, 0.14f)
+        val skidMarkDark = floatArrayOf(0.06f, 0.06f, 0.07f)
         val whiteLine = floatArrayOf(0.96f, 0.96f, 0.98f)
         val yellowLine = floatArrayOf(0.96f, 0.80f, 0.14f)
         val gridBoxYellow = floatArrayOf(1.0f, 0.86f, 0.16f)
@@ -541,12 +544,15 @@ object TrackMeshBuilder {
     }
 
     // =============================================================================================
-    // 5. FIA RACING KERBS WITH 3D BEVELED PROFILE & ALTERNATING COLORS
+    // 5. FIA RACING KERBS WITH 3D BEVELED PROFILE & TRACK-SPECIFIC ALTERNATING COLORS
     // =============================================================================================
-    private fun generateKerbMesh(spline: List<TrackSplinePoint>): Mesh {
+    private fun generateKerbMesh(spline: List<TrackSplinePoint>, trackType: TrackType): Mesh {
         val mb = MeshBuffer()
         val redKerb = floatArrayOf(0.92f, 0.12f, 0.12f)
         val whiteKerb = floatArrayOf(0.96f, 0.96f, 0.98f)
+        val yellowKerb = floatArrayOf(0.96f, 0.82f, 0.10f)
+        val blackKerb = floatArrayOf(0.12f, 0.12f, 0.14f)
+        val blueKerb = floatArrayOf(0.10f, 0.45f, 0.92f)
 
         val count = spline.size
         val kerbWidth = 1.45f
@@ -555,7 +561,13 @@ object TrackMeshBuilder {
         for (i in 0 until count) {
             val curr = spline[i]
             val next = spline[(i + 1) % count]
-            val color = if ((i / 2) % 2 == 0) redKerb else whiteKerb
+
+            // Color alternating scheme per track
+            val color = when (trackType) {
+                TrackType.GRAND_PRIX -> if ((i / 2) % 2 == 0) redKerb else whiteKerb
+                TrackType.ALPINE_PASS -> if ((i / 2) % 2 == 0) yellowKerb else blackKerb
+                TrackType.NEON_METROPOLIS -> if ((i / 2) % 2 == 0) blueKerb else whiteKerb
+            }
 
             val tx = next.x - curr.x
             val tz = next.z - curr.z
@@ -823,6 +835,12 @@ object TrackMeshBuilder {
         mb.addBox(62f, 0f, 380f, 78f, 8.5f, 440f, concreteWhite[0], concreteWhite[1], concreteWhite[2])
         mb.addBox(60f, 8.8f, 378f, 80f, 9.6f, 442f, sponsorRed[0], sponsorRed[1], sponsorRed[2])
 
+        // Large Video Scoreboard Screen at Turn 1
+        val screenBorder = floatArrayOf(0.18f, 0.20f, 0.24f)
+        val screenEmissive = floatArrayOf(0.20f, 1.2f, 1.5f) // Glowing cyan telemetry screen
+        mb.addBox(79f, 9.6f, 400f, 79.5f, 16.5f, 420f, screenBorder[0], screenBorder[1], screenBorder[2])
+        mb.addBox(78.8f, 10.2f, 402f, 79.0f, 15.8f, 418f, screenEmissive[0], screenEmissive[1], screenEmissive[2])
+
         // 5. Coastal Palm Trees along shoreline and infield promenade
         val trunkColor = floatArrayOf(0.40f, 0.30f, 0.22f)
         val frondColor = floatArrayOf(0.18f, 0.48f, 0.16f)
@@ -848,6 +866,7 @@ object TrackMeshBuilder {
         val boardWhite = floatArrayOf(0.96f, 0.96f, 0.96f)
         val boardBlack = floatArrayOf(0.04f, 0.04f, 0.04f)
         val markerZ = listOf(260f to "50", 220f to "100", 180f to "150", 140f to "200")
+
         for ((z, _) in markerZ) {
             mb.addBox(8.8f, 0.5f, z - 0.1f, 9.0f, 2.3f, z + 2.0f, boardWhite[0], boardWhite[1], boardWhite[2])
             mb.addBox(8.7f, 0.8f, z + 0.2f, 8.75f, 2.0f, z + 1.7f, boardBlack[0], boardBlack[1], boardBlack[2])
@@ -856,8 +875,10 @@ object TrackMeshBuilder {
         // 7. Trackside Sponsor Hoardings (Apex GT, Pirelli, Castrol, Brembo)
         val sponsorCyan = floatArrayOf(0.0f, 0.85f, 0.95f)
         val sponsorYellow = floatArrayOf(0.95f, 0.82f, 0.10f)
+        val sponsorRedBanner = floatArrayOf(0.90f, 0.15f, 0.18f)
         mb.addBox(9.8f, 0.2f, 140f, 10.1f, 1.9f, 185f, sponsorCyan[0], sponsorCyan[1], sponsorCyan[2])
         mb.addBox(48f, 1.8f, 370f, 56f, 3.4f, 370.4f, sponsorYellow[0], sponsorYellow[1], sponsorYellow[2])
+        mb.addBox(275f, 1.2f, 220f, 275.4f, 2.8f, 260f, sponsorRedBanner[0], sponsorRedBanner[1], sponsorRedBanner[2])
 
         // 8. Trackside Marshall Intervention Posts
         val postWhite = floatArrayOf(0.92f, 0.92f, 0.92f)
@@ -1048,6 +1069,7 @@ object TrackMeshBuilder {
         for (i in 0 until count step 10) {
             val curr = spline[i]
             val next = spline[(i + 1) % count]
+
             val tx = next.x - curr.x
             val tz = next.z - curr.z
             val tLen = sqrt(tx * tx + tz * tz).coerceAtLeast(0.001f)
