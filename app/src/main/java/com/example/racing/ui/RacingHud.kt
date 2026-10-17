@@ -43,6 +43,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -168,11 +171,12 @@ fun RacingHud(
     if (abs(tiltFilteredValue) < 0.005f && tiltRawValue == 0f) tiltFilteredValue = 0f
 
     // Touch button steering ramp & opposing input cancellation
+    // Documented Convention: Left = negative steer (-1.0f), Right = positive steer (+1.0f), Neutral = 0.0f
     var touchSteerSmooth by remember { mutableFloatStateOf(0f) }
     val touchTarget = when {
-        isLeftPressed && !isRightPressed -> 1.0f
-        isRightPressed && !isLeftPressed -> -1.0f
-        else -> 0.0f // Opposing inputs cleanly resolve to neutral 0.0f
+        isLeftPressed && !isRightPressed -> -1.0f  // Pressing LEFT steers car left (negative)
+        isRightPressed && !isLeftPressed -> 1.0f   // Pressing RIGHT steers car right (positive)
+        else -> 0.0f // Opposing inputs or release cleanly resolve to neutral 0.0f
     }
     val rampSpeed = if (touchTarget == 0f) 0.36f else 0.26f
     touchSteerSmooth += (touchTarget - touchSteerSmooth) * rampSpeed
@@ -180,7 +184,8 @@ fun RacingHud(
 
     // Compute steer input for vehicle physics based on active control type
     val steerValue = when (controlType) {
-        ControlType.VIRTUAL_WHEEL -> (-wheelAnimatable.value / 60f).coerceIn(-1.0f, 1.0f)
+        // Dragging wheel right (+angle) produces positive steer (right); dragging left (-angle) produces negative steer (left)
+        ControlType.VIRTUAL_WHEEL -> (wheelAnimatable.value / 60f).coerceIn(-1.0f, 1.0f)
         ControlType.TILT_GYRO -> tiltFilteredValue
         ControlType.TOUCH_BUTTONS -> touchSteerSmooth
     }
@@ -733,24 +738,28 @@ fun PauseMenuOverlay(
         viewModel.resumeRace()
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xD9060912))
             .clickable(enabled = false) {}, // Absorbs clicks
         contentAlignment = Alignment.Center
     ) {
+        val isShort = maxHeight < 400.dp
         Surface(
             color = Color(0xF20F1626),
             shape = RoundedCornerShape(20.dp),
             border = BorderStroke(1.5.dp, Color(0x4400E5FF)),
             modifier = Modifier
-                .width(460.dp)
-                .padding(16.dp)
+                .widthIn(max = 480.dp)
+                .fillMaxWidth(0.92f)
+                .padding(8.dp)
                 .testTag("pause_menu_modal")
         ) {
             Column(
-                modifier = Modifier.padding(22.dp),
+                modifier = Modifier
+                    .padding(horizontal = 18.dp, vertical = if (isShort) 12.dp else 18.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Header
@@ -1093,7 +1102,7 @@ fun TiltIndicator(
                 // Horizon bar
                 drawLine(Color(0x44FFFFFF), Offset(0f, cy), Offset(size.width, cy), strokeWidth = 1.5f)
                 // Steer Marker (moves left for left steer, right for right steer)
-                val markerX = (cx - steerValue * (cx - 10f)).coerceIn(10f, size.width - 10f)
+                val markerX = (cx + steerValue * (cx - 10f)).coerceIn(10f, size.width - 10f)
                 drawCircle(color = Color(0xFFFFD700), radius = 5f, center = Offset(markerX, cy))
             }
         }
