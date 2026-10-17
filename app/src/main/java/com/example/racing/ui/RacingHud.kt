@@ -174,8 +174,8 @@ fun RacingHud(
     // Documented Convention: Left = negative steer (-1.0f), Right = positive steer (+1.0f), Neutral = 0.0f
     var touchSteerSmooth by remember { mutableFloatStateOf(0f) }
     val touchTarget = when {
-        isLeftPressed && !isRightPressed -> -1.0f  // Pressing LEFT steers car left (negative)
-        isRightPressed && !isLeftPressed -> 1.0f   // Pressing RIGHT steers car right (positive)
+        isLeftPressed && !isRightPressed -> 1.0f   // Pressing LEFT steers car left (positive)
+        isRightPressed && !isLeftPressed -> -1.0f  // Pressing RIGHT steers car right (negative)
         else -> 0.0f // Opposing inputs or release cleanly resolve to neutral 0.0f
     }
     val rampSpeed = if (touchTarget == 0f) 0.36f else 0.26f
