@@ -125,6 +125,7 @@ fun RacingHud(
     var isBrakePressed by remember { mutableStateOf(false) }
     var isHandbrakePressed by remember { mutableStateOf(false) }
     var isBoostPressed by remember { mutableStateOf(false) }
+    var touchSteerSmooth by remember { mutableFloatStateOf(0f) }
 
     // Virtual steering wheel animated state
     val wheelAnimatable = remember { Animatable(0f) }
@@ -133,6 +134,13 @@ fun RacingHud(
     // Accelerometer Sensor for TILT_GYRO mode with deadzone & low-pass filtering
     var tiltRawValue by remember { mutableFloatStateOf(0f) }
     var tiltFilteredValue by remember { mutableFloatStateOf(0f) }
+
+    // Ensure driver inputs are cleared if HUD leaves composition
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.resetDriverInputs()
+        }
+    }
 
     DisposableEffect(controlType) {
         if (controlType == ControlType.TILT_GYRO) {
@@ -166,26 +174,67 @@ fun RacingHud(
         }
     }
 
+    // Clean input reset hooks to prevent latched/stale state across pauses, restarts, and mode changes
+    LaunchedEffect(controlType) {
+        isLeftPressed = false
+        isRightPressed = false
+        touchSteerSmooth = 0f
+        rawWheelAngle = 0f
+        wheelAnimatable.snapTo(0f)
+        tiltRawValue = 0f
+        tiltFilteredValue = 0f
+        viewModel.setSteerInput(0f)
+    }
+
+    LaunchedEffect(isGamePaused) {
+        if (isGamePaused) {
+            isLeftPressed = false
+            isRightPressed = false
+            isGasPressed = false
+            isBrakePressed = false
+            isHandbrakePressed = false
+            isBoostPressed = false
+            touchSteerSmooth = 0f
+            rawWheelAngle = 0f
+            wheelAnimatable.snapTo(0f)
+            viewModel.resetDriverInputs()
+        }
+    }
+
+    LaunchedEffect(telemetry.isCountdownActive) {
+        if (telemetry.isCountdownActive) {
+            isLeftPressed = false
+            isRightPressed = false
+            isGasPressed = false
+            isBrakePressed = false
+            isHandbrakePressed = false
+            isBoostPressed = false
+            touchSteerSmooth = 0f
+            rawWheelAngle = 0f
+            wheelAnimatable.snapTo(0f)
+            viewModel.resetDriverInputs()
+        }
+    }
+
     // Low-pass filter for tilt steering
     tiltFilteredValue += (tiltRawValue - tiltFilteredValue) * 0.24f
     if (abs(tiltFilteredValue) < 0.005f && tiltRawValue == 0f) tiltFilteredValue = 0f
 
     // Touch button steering ramp & opposing input cancellation
-    // Documented Convention: Left = negative steer (-1.0f), Right = positive steer (+1.0f), Neutral = 0.0f
-    var touchSteerSmooth by remember { mutableFloatStateOf(0f) }
+    // Consistent Convention: Left = positive steer (+1.0f), Right = negative steer (-1.0f), Neutral = 0.0f
     val touchTarget = when {
-        isLeftPressed && !isRightPressed -> 1.0f   // Pressing LEFT steers car left (positive)
-        isRightPressed && !isLeftPressed -> -1.0f  // Pressing RIGHT steers car right (negative)
+        isLeftPressed && !isRightPressed -> 1.0f   // Pressing LEFT steers car left (+1.0f steer, +X world velocity, positive yaw)
+        isRightPressed && !isLeftPressed -> -1.0f  // Pressing RIGHT steers car right (-1.0f steer, -X world velocity, negative yaw)
         else -> 0.0f // Opposing inputs or release cleanly resolve to neutral 0.0f
     }
-    val rampSpeed = if (touchTarget == 0f) 0.36f else 0.26f
+    val rampSpeed = if (touchTarget == 0f) 0.42f else 0.30f
     touchSteerSmooth += (touchTarget - touchSteerSmooth) * rampSpeed
     if (abs(touchSteerSmooth) < 0.01f && touchTarget == 0f) touchSteerSmooth = 0f
 
     // Compute steer input for vehicle physics based on active control type
     val steerValue = when (controlType) {
-        // Dragging wheel right (+angle) produces positive steer (right); dragging left (-angle) produces negative steer (left)
-        ControlType.VIRTUAL_WHEEL -> (wheelAnimatable.value / 60f).coerceIn(-1.0f, 1.0f)
+        // Dragging wheel left (-angle) steers left (+1.0f); dragging wheel right (+angle) steers right (-1.0f)
+        ControlType.VIRTUAL_WHEEL -> (-wheelAnimatable.value / 60f).coerceIn(-1.0f, 1.0f)
         ControlType.TILT_GYRO -> tiltFilteredValue
         ControlType.TOUCH_BUTTONS -> touchSteerSmooth
     }
@@ -981,8 +1030,11 @@ fun SteerButton(
                 detectTapGestures(
                     onPress = {
                         onPressChange(true)
-                        tryAwaitRelease()
-                        onPressChange(false)
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            onPressChange(false)
+                        }
                     }
                 )
             }
@@ -1011,14 +1063,18 @@ fun VirtualSteeringWheel(
     Box(
         modifier = modifier
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragEnd = { onRelease() },
-                    onDragCancel = { onRelease() },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        onDragAngle(dragAmount.x * 0.85f)
-                    }
-                )
+                try {
+                    detectDragGestures(
+                        onDragEnd = { onRelease() },
+                        onDragCancel = { onRelease() },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            onDragAngle(dragAmount.x * 0.85f)
+                        }
+                    )
+                } finally {
+                    onRelease()
+                }
             },
         contentAlignment = Alignment.Center
     ) {
@@ -1429,8 +1485,11 @@ fun PedalButton(
                 detectTapGestures(
                     onPress = {
                         onPressChange(true)
-                        tryAwaitRelease()
-                        onPressChange(false)
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            onPressChange(false)
+                        }
                     }
                 )
             }

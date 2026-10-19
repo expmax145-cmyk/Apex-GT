@@ -241,9 +241,31 @@ class Shader(
             float hash21(vec2 p) {
                 return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
             }
+            
+            // Enhanced asphalt micro-roughness noise
+            float getAsphaltNoise(vec3 worldPos) {
+                vec2 uv = worldPos.xz * 4.0;
+                float n = hash21(floor(uv)) * 0.5 + hash21(floor(uv * 2.0)) * 0.5;
+                return n;
+            }
+            
+            // Procedural perturbed normal based on asphalt noise
+            vec3 getPerturbedNormal(vec3 worldPos, vec3 N) {
+                float h = getAsphaltNoise(worldPos);
+                vec3 ddx = dFdx(worldPos);
+                vec3 ddy = dFdy(worldPos);
+                vec3 tan = normalize(ddx * dFdy(h) - ddy * dFdx(h));
+                vec3 bitan = normalize(cross(N, tan));
+                // Perturb normal based on noise gradient
+                return normalize(N + (tan * dFdx(h) + bitan * dFdy(h)) * 0.15);
+            }
 
             void main() {
                 vec3 N = normalize(v_WorldNormal);
+                // Apply procedural normal mapping for asphalt surfaces (high roughness threshold)
+                if (u_Roughness > 0.35) {
+                    N = getPerturbedNormal(v_WorldPos, N);
+                }
                 vec3 V = normalize(u_CameraPos - v_WorldPos);
                 vec3 L = normalize(u_SunDirection);
                 vec3 H = normalize(L + V);
@@ -323,7 +345,7 @@ class Shader(
                 vec3 ambient = kD_ambient * albedo * ambientColor + envSkyReflection * F_ambient * (1.0 - u_Roughness);
 
                 // --- 3. Direct Sun Lighting (Cook-Torrance Specular BRDF) ---
-                float r = clamp(u_Roughness, 0.04, 1.0);
+                float r = clamp(u_Roughness * (0.9 + 0.2 * getAsphaltNoise(v_WorldPos)), 0.04, 1.0);
                 float NDF = distributionGGX(NdotH, r);
                 float G = geometrySmith(NdotV, NdotL, r);
                 vec3 F = fresnelSchlick(VdotH, F0);
@@ -373,7 +395,8 @@ class Shader(
                 if (u_WetRoadActive > 0.05 && N.y > 0.55) {
                     // Asphalt moisture light absorption: darkens base asphalt without muddying bright painted lines
                     if (u_Roughness > 0.35 && u_Metallic < 0.2) {
-                        albedo *= mix(vec3(1.0), vec3(0.68, 0.68, 0.70), u_WetRoadActive * 0.65);
+                        float microRoughness = getAsphaltNoise(v_WorldPos);
+                        albedo *= mix(vec3(1.0), vec3(0.68, 0.68, 0.70) * (0.8 + 0.2 * microRoughness), u_WetRoadActive * 0.65);
                     }
                     // Strong grazing Fresnel on wet mirror surface
                     float wetF = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.2);

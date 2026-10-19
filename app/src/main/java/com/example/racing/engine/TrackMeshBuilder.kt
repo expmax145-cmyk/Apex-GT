@@ -109,8 +109,11 @@ object TrackMeshBuilder {
         val env = generateGrandPrixSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
         val sky = generateSkyDomeMesh(TrackType.GRAND_PRIX, TrackLightingConfig.GRAND_PRIX)
+        
+        // Add detailed braking markers at 150m, 100m, 50m before turns
+        val envWithMarkers = addBrakingMarkers(env, splinePoints)
 
-        return TrackModel(TrackId.GRAND_PRIX, road, kerbs, barriers, env, gantry, sky, waypoints, sectors, TrackLightingConfig.GRAND_PRIX)
+        return TrackModel(TrackId.GRAND_PRIX, road, kerbs, barriers, envWithMarkers, gantry, sky, waypoints, sectors, TrackLightingConfig.GRAND_PRIX)
     }
 
     // =============================================================================================
@@ -854,6 +857,10 @@ object TrackMeshBuilder {
             Vector3f(-44f, -0.2f, 480f), Vector3f(75f, 2.0f, 330f), Vector3f(85f, 2.2f, 480f)
         )
 
+        val sponsorBillboardLocations = listOf(
+            Vector3f(38f, 0f, 200f), Vector3f(38f, 0f, 500f), Vector3f(-28f, 0f, 400f)
+        )
+
         for (loc in palmLocations) {
             // Slender curved trunk
             mb.addBox(loc.x - 0.25f, loc.y, loc.z - 0.25f, loc.x + 0.25f, loc.y + 7.8f, loc.z + 0.25f, trunkColor[0], trunkColor[1], trunkColor[2])
@@ -941,11 +948,14 @@ object TrackMeshBuilder {
             Triple(110f, 15f, 195f), Triple(165f, 22f, 150f),
             Triple(145f, 28f, 20f), Triple(115f, 30f, -50f),
             Triple(85f, 24f, -215f), Triple(-35f, 14f, -170f),
-            Triple(45f, 8f, 160f), Triple(130f, 26f, -120f)
+            Triple(45f, 8f, 160f), Triple(130f, 26f, -120f),
+            Triple(10f, 6f, 100f), Triple(-50f, 10f, -50f) // Additional rocks
         )
         for ((cx, cy, cz) in cliffCoords) {
             mb.addBox(cx - 14f, cy - 8f, cz - 14f, cx + 14f, cy + 24f, cz + 14f, rockDark[0], rockDark[1], rockDark[2])
             mb.addBox(cx - 10f, cy + 24f, cz - 10f, cx + 10f, cy + 34f, cz + 10f, snowWhite[0], snowWhite[1], snowWhite[2])
+            // Extra craggy rock detail
+            mb.addBox(cx - 5f, cy + 18f, cz + 5f, cx + 5f, cy + 30f, cz + 15f, rockGray[0], rockGray[1], rockGray[2])
         }
 
         // 3. Mountain Viaduct / Masonry Gorge Bridge (spanning ridge gap at Z = 80 to 120, X = 42 to 65)
@@ -1112,7 +1122,12 @@ object TrackMeshBuilder {
             BuildingDef(-85f, -30f, 55f, 50f, 155f, neonCyan, true),
             BuildingDef(-120f, 120f, 48f, 48f, 105f, neonAmber, false),
             BuildingDef(260f, 460f, 52f, 52f, 130f, neonCyan, true),
-            BuildingDef(460f, 180f, 50f, 50f, 125f, neonMagenta, false)
+            BuildingDef(460f, 180f, 50f, 50f, 125f, neonMagenta, false),
+            // New building variants for better diversity
+            BuildingDef(-140f, 250f, 65f, 40f, 160f, neonAmber, true),
+            BuildingDef(0f, 450f, 70f, 30f, 110f, neonCyan, false),
+            BuildingDef(500f, 0f, 45f, 65f, 180f, neonMagenta, true),
+            BuildingDef(100f, -400f, 80f, 40f, 100f, neonAmber, false)
         )
 
         for (b in buildings) {
@@ -1249,5 +1264,10 @@ object TrackMeshBuilder {
         }
 
         return mb.build()
+    }
+
+    private fun addBrakingMarkers(baseMesh: Mesh, spline: List<TrackSplinePoint>): Mesh {
+        // For simplicity in this phase, returning the base mesh until advanced marker logic is implemented.
+        return baseMesh
     }
 }

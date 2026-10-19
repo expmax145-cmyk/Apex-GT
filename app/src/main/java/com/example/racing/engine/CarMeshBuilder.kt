@@ -740,6 +740,8 @@ object CarMeshBuilder {
                 md.addTriangle(n0, n1, n2)
             }
         }
+        // Brake caliper detail
+        md.addBox(hubX - 0.05f, hubRadius * 0.4f, hubRadius * 0.8f, hubX + 0.05f, hubRadius * 1.1f, hubRadius * 1.3f, caliperColor)
 
         // Distinct Spoke Patterns based on Vehicle Personality
         val spokeAngleStep = (2.0 * PI / spokeCount).toFloat()

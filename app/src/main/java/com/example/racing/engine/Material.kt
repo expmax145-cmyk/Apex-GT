@@ -73,20 +73,20 @@ data class Material(
         // High-gloss automotive clearcoated metallic paint
         val CAR_PAINT_METALLIC = Material(
             color = floatArrayOf(0.95f, 0.15f, 0.20f, 1.0f),
-            specular = floatArrayOf(1.0f, 0.95f, 0.95f, 1.0f),
-            shininess = 95f,
-            metallic = 0.88f,
-            roughness = 0.12f,
-            clearcoat = 0.95f
+            specular = floatArrayOf(1.0f, 0.98f, 0.98f, 1.0f),
+            shininess = 115f,
+            metallic = 0.92f,
+            roughness = 0.08f,
+            clearcoat = 1.0f
         )
         // High-performance autoclave weave carbon fiber
         val CARBON_FIBER = Material(
-            color = floatArrayOf(0.12f, 0.12f, 0.14f, 1.0f),
-            specular = floatArrayOf(0.50f, 0.50f, 0.52f, 1.0f),
-            shininess = 38f,
-            metallic = 0.25f,
-            roughness = 0.40f,
-            clearcoat = 0.50f
+            color = floatArrayOf(0.11f, 0.11f, 0.12f, 1.0f),
+            specular = floatArrayOf(0.40f, 0.40f, 0.42f, 1.0f),
+            shininess = 50f,
+            metallic = 0.15f,
+            roughness = 0.25f,
+            clearcoat = 0.60f
         )
         // Vulcanized synthetic racing tire compound (matte, micro-textured, high roughness)
         val RUBBER_TIRE = Material(
@@ -109,11 +109,11 @@ data class Material(
         // Wheel assembly combining spoke alloys, rubber sidewalls and ventilated rotors
         val WHEEL_ASSEMBLY = Material(
             color = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
-            specular = floatArrayOf(0.96f, 0.96f, 0.98f, 1.0f),
-            shininess = 85f,
-            metallic = 0.72f,
-            roughness = 0.20f,
-            clearcoat = 0.65f
+            specular = floatArrayOf(0.98f, 0.98f, 1.0f, 1.0f),
+            shininess = 110f,
+            metallic = 0.85f,
+            roughness = 0.10f,
+            clearcoat = 0.90f
         )
         // High-reflection tinted greenhouse safety glass
         val GLASS_TINT = Material(

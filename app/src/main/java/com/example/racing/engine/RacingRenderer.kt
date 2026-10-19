@@ -556,8 +556,9 @@ class RacingRenderer(
         }
 
         // 3. Screen Shake / Vibration Dynamics
-        if (playerVehicle.isOffRoad && speedKmh > 18f) {
-            cameraShakeIntensity = max(cameraShakeIntensity, 0.045f)
+        if (playerVehicle.isOffRoad && speedKmh > 8f) {
+            val intensity = (speedKmh / 150f).coerceIn(0.04f, 0.12f)
+            cameraShakeIntensity = max(cameraShakeIntensity, intensity)
         }
         if (playerVehicle.hasCollidedBarrier && speedKmh > 10f) {
             cameraShakeIntensity = max(cameraShakeIntensity, (speedKmh / 150f).coerceIn(0.06f, 0.14f))

@@ -129,6 +129,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     var playerVehicle = VehiclePhysics()
     val aiOpponents = mutableListOf<OpponentAIController>()
+    private val reusableVehicleList = ArrayList<VehiclePhysics>(8)
     var renderer: RacingRenderer? = null
         private set
 
@@ -336,6 +337,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         sectorDeltaText = ""
         boostEnergy = 100f
         finishLineCooldown = 5.0f
+
+        // Guarantee clean inputs and 1st gear engaged upon entering race
+        resetDriverInputs()
+        playerVehicle.brake = if (mode == RaceMode.FREE_DRIVE) 0f else 1f
+        playerVehicle.powertrain.currentGear = 2 // 1st gear
+        playerVehicle.powertrain.currentRpm = playerVehicle.powertrain.idleRpm
+        playerVehicle.reverseHoldTimer = 0f
+        for (ai in aiOpponents) {
+            ai.vehicle.brake = if (mode == RaceMode.FREE_DRIVE) 0f else 1f
+            ai.vehicle.powertrain.currentGear = 2
+            ai.vehicle.powertrain.currentRpm = ai.vehicle.powertrain.idleRpm
+            ai.vehicle.reverseHoldTimer = 0f
+        }
     }
 
     fun updateGamePhysics(dt: Float) {
@@ -361,6 +375,31 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             playerVehicle.reverseHoldTimer = 0f
             playerVehicle.powertrain.currentGear = 2 // Lock 1st gear
             playerVehicle.powertrain.currentRpm = playerVehicle.powertrain.idleRpm
+
+            for (ai in aiOpponents) {
+                ai.vehicle.throttle = 0f
+                ai.vehicle.brake = 1f
+                ai.vehicle.forwardVelocity = 0f
+                ai.vehicle.lateralVelocity = 0f
+                ai.vehicle.yawRate = 0f
+                ai.vehicle.reverseHoldTimer = 0f
+                ai.vehicle.powertrain.currentGear = 2
+                ai.vehicle.powertrain.currentRpm = ai.vehicle.powertrain.idleRpm
+            }
+
+            // Once countdown expires, cleanly transition to GO
+            if (raceTiming.countdownSec <= 0f) {
+                raceTiming.countdownSec = 0f
+                playerVehicle.brake = 0f
+                playerVehicle.reverseHoldTimer = 0f
+                playerVehicle.powertrain.currentGear = 2 // 1st gear
+                for (ai in aiOpponents) {
+                    ai.vehicle.brake = 0f
+                    ai.vehicle.reverseHoldTimer = 0f
+                    ai.vehicle.powertrain.currentGear = 2
+                }
+            }
+
             updateTelemetryState()
             return
         }
@@ -378,19 +417,30 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val track = renderer?.trackModel
         val waypoints = track?.waypoints ?: emptyList()
 
-        playerVehicle.update(dt, waypoints, roadHalfWidth = 7.0f)
+        // Phase 4 Dynamic Weather & Track Surface Adhesion
+        val weatherGrip = when (_weatherCondition.value) {
+            com.example.racing.model.WeatherCondition.CLEAR -> 1.0f
+            com.example.racing.model.WeatherCondition.OVERCAST -> 0.98f
+            com.example.racing.model.WeatherCondition.LIGHT_RAIN -> 0.84f
+            com.example.racing.model.WeatherCondition.HEAVY_RAIN -> 0.70f
+        }
+        val trackWetFactor = if (track?.lightingConfig?.isWetRoad == true) 0.88f else 1.0f
+        val baseSurfaceGrip = weatherGrip * trackWetFactor
+
+        playerVehicle.update(dt, waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = baseSurfaceGrip)
 
         for (i in aiOpponents.indices) {
-            aiOpponents[i].updateWithVehicles(dt, playerVehicle, aiOpponents)
+            aiOpponents[i].updateWithVehicles(dt, playerVehicle, aiOpponents, baseSurfaceGrip = baseSurfaceGrip)
         }
 
         // 1. Physical Vehicle-to-Vehicle Collisions (OBB SAT & Impulse Response)
-        val allVehicles = mutableListOf<VehiclePhysics>().apply {
-            add(playerVehicle)
-            addAll(aiOpponents.map { it.vehicle })
+        reusableVehicleList.clear()
+        reusableVehicleList.add(playerVehicle)
+        for (i in aiOpponents.indices) {
+            reusableVehicleList.add(aiOpponents[i].vehicle)
         }
         VehicleCollisionSystem.resolveVehicleCollisions(
-            vehicles = allVehicles,
+            vehicles = reusableVehicleList,
             playerVehicle = playerVehicle,
             particleSystem = renderer?.particleSystem,
             onCollisionImpact = { intensity ->
@@ -403,13 +453,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             audioEngine.triggerCollision((playerVehicle.speedKmh / 55f).coerceIn(0.4f, 1.3f))
         }
 
-        // 3. Rumble Strip / Kerb Audio Detection (triggers on outer road edges, never on the center lane)
-        var onKerb = false
-        if (waypoints.isNotEmpty() && playerVehicle.speedKmh > 18f && !playerVehicle.isOffRoad) {
-            val roadHalfWidth = 7.0f
-            onKerb = playerVehicle.trackLateralDistance in (roadHalfWidth - 1.6f)..roadHalfWidth
-        }
-        audioEngine.isOnKerb = onKerb
+        // 3. Rumble Strip / Kerb Audio Detection (synchronized with physical suspension excitation)
+        audioEngine.isOnKerb = playerVehicle.isOnKerb && playerVehicle.speedKmh > 18f
 
         // 4. Opponent Spatial Audio (Closest competitor to player)
         var closestAiDist = Float.MAX_VALUE
@@ -495,7 +540,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         audioEngine.engineRpm = playerVehicle.powertrain.currentRpm
         audioEngine.redlineRpm = playerVehicle.powertrain.redlineRpm
         audioEngine.throttleLoad = playerVehicle.throttle
-        audioEngine.tireSlip = maxOf(playerVehicle.tireSlipRl, playerVehicle.tireSlipRr, playerVehicle.tireSlipFl)
+        audioEngine.tireSlip = maxOf(playerVehicle.tireSlipRl, playerVehicle.tireSlipRr, playerVehicle.tireSlipFl, playerVehicle.tireSlipFr)
         audioEngine.turboBoost = playerVehicle.powertrain.turboBoostBar
         if (playerVehicle.powertrain.exhaustBackfireTrigger) {
             audioEngine.triggerPop = true
@@ -629,8 +674,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun updateTelemetryState() {
         val timing = raceTiming
         val rpmRatio = (playerVehicle.powertrain.currentRpm / playerVehicle.powertrain.redlineRpm).coerceIn(0f, 1f)
-        val absActive = (playerVehicle.brake > 0.45f && playerVehicle.speedKmh > 10f)
-        val tcsActive = (playerVehicle.throttle > 0.65f && (playerVehicle.speedKmh < 45f || playerVehicle.isOffRoad))
+        val absActive = (playerVehicle.brake > 0.40f && playerVehicle.speedKmh > 8f &&
+                (playerVehicle.tireSlipFl > 0.30f || playerVehicle.tireSlipFr > 0.30f || playerVehicle.wheelSpinFl > 0.25f))
+        val tcsActive = (playerVehicle.throttle > 0.45f &&
+                (playerVehicle.wheelSpinRl > 0.25f || playerVehicle.wheelSpinRr > 0.25f || playerVehicle.isOffRoad))
 
         val track = renderer?.trackModel
         val waypoints = track?.waypoints ?: emptyList()
@@ -690,18 +737,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setThrottle(throttle: Float) {
+        if (raceTiming.isCountdownActive) return
         playerVehicle.throttle = throttle
     }
 
     fun setBrake(brake: Float) {
+        if (raceTiming.isCountdownActive) return
         playerVehicle.brake = brake
     }
 
     fun setHandbrake(active: Boolean) {
+        if (raceTiming.isCountdownActive) return
         playerVehicle.handbrake = active
     }
 
     fun triggerBoost(active: Boolean) {
+        if (raceTiming.isCountdownActive) return
         if (boostEnergy > 5f) {
             playerVehicle.boostActive = active
         } else {
@@ -715,6 +766,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         playerVehicle.steerInput = 0f
         playerVehicle.handbrake = false
         playerVehicle.boostActive = false
+        playerVehicle.reverseHoldTimer = 0f
     }
 
     fun toggleCamera() {
@@ -953,6 +1005,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun restartRace() {
         _isGamePaused.value = false
+        resetDriverInputs()
         startRace(_activeRaceMode.value)
     }
 

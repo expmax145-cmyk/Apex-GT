@@ -64,22 +64,33 @@ enum class AIRecoveryState {
 }
 
 /**
- * Phase 13 — Intelligent Racing AI Controller.
+ * Tactical state machine for competitive racing intelligence.
+ */
+enum class AITacticalState {
+    FOLLOW_RACING_LINE,
+    APPROACHING_TRAFFIC,
+    PREPARING_OVERTAKE,
+    OVERTAKING,
+    DEFENDING,
+    AVOIDING_COLLISION,
+    RECOVERING
+}
+
+/**
+ * Phase 5 — Advanced Racing AI Opponent Controller.
  *
  * Implements:
- * - Dynamic Waypoint Navigation with curvature-aware lookahead
- * - Multi-horizon Speed Profiling & Threshold Braking Distance calculations
- * - Geometric Racing Lines (outside-inside-outside with apex clipping)
- * - Multi-Car Spatial Awareness (Player + AI pack)
- * - Slipstream / Drafting detection and slingshot overtaking
- * - Defensive line blocking against close pursuers
- * - Side-by-side racing etiquette with lateral room allocation
- * - Obstacle / slow vehicle avoidance
- * - Distinguishable opponent personalities (Viper, Shadow, Ghost)
- * - Human-like recoverable driver mistakes
- * - Three-stage recovery state machine (reversing, realigning, resuming)
- * - Anti-oscillation steering rate limiter for buttery vehicle stability
- * - Zero per-frame memory allocation design
+ * - Dynamic Waypoint Navigation with Curvature-Aware Speed Profiling & Dynamic Braking Distances
+ * - Continuous Geometric Racing Lines (outside-inside-outside with apex clipping)
+ * - Tactical State Machine (FOLLOW_RACING_LINE, APPROACHING_TRAFFIC, PREPARING_OVERTAKE, OVERTAKING, DEFENDING, AVOIDING_COLLISION, RECOVERING)
+ * - Multi-Vehicle Spatial Awareness, Closing Speed Estimation & Time-To-Collision (TTC)
+ * - Safe Passing Lane Selection & Overtake Commitment Hysteresis (prevents alternating sides)
+ * - Abandoning Unsafe Overtakes when Path Becomes Blocked
+ * - Multi-Car Etiquette & Side-by-Side Space Allocation
+ * - Defensive Positioning against Close Pursuers
+ * - Full Physical Collision Compatibility (no teleportation, absorbs contact impulses)
+ * - Non-Looping Three-Stage Recovery State Machine
+ * - Zero Per-Frame Memory Allocation Design
  */
 class OpponentAIController(
     val vehicle: VehiclePhysics,
@@ -97,19 +108,27 @@ class OpponentAIController(
     var finishTimeSec: Float = 0f
     var cachedMaterial: com.example.racing.engine.Material? = null
 
-    // State machine & behavior
+    // State machine & tactical behavior
     var recoveryState: AIRecoveryState = AIRecoveryState.NORMAL
+    var tacticalState: AITacticalState = AITacticalState.FOLLOW_RACING_LINE
+    var overtakeSide: Float = 0f // +1 for pass right, -1 for pass left
+    var overtakeCommitTimer: Float = 0f
+    var sideSwitchCooldown: Float = 0f
+    var overtakeTargetVehicle: VehiclePhysics? = null
+    var targetSpeedKmhTelemetry: Float = 0f
+
     private var recoveryTimer: Float = 0f
     private var mistakeTimer: Float = 0f
     private var mistakeActive: Boolean = false
     private var mistakeOffset: Float = 0f
     private var draftBonusActive: Boolean = false
     private var lastPassedWaypointIndex: Int = 0
+    private var consecutiveSameWaypointCount: Int = 0
 
     // Deterministic random generator per driver name
     private val rng = Random(profile.name.hashCode())
 
-    private fun safeIndex(idx: Int, count: Int): Int {
+    fun safeIndex(idx: Int, count: Int): Int {
         if (count <= 0) return 0
         return ((idx % count) + count) % count
     }
@@ -117,7 +136,12 @@ class OpponentAIController(
     /**
      * Standard update loop using competitor positions.
      */
-    fun update(dt: Float, playerPos: Vector3f, otherAIs: List<Vector3f>) {
+    fun update(
+        dt: Float,
+        playerPos: Vector3f,
+        otherAIs: List<Vector3f>,
+        baseSurfaceGrip: Float = 1.0f
+    ) {
         if (waypoints.isEmpty()) return
 
         val count = waypoints.size
@@ -139,6 +163,17 @@ class OpponentAIController(
             }
         }
 
+        if (nearestIdx == currentWaypointIndex) {
+            consecutiveSameWaypointCount++
+            if (consecutiveSameWaypointCount > 280 && count > 1) {
+                // Prevent permanent deadlock around a single waypoint
+                nearestIdx = safeIndex(nearestIdx + 1, count)
+                consecutiveSameWaypointCount = 0
+            }
+        } else {
+            consecutiveSameWaypointCount = 0
+        }
+
         // Lap crossing detection
         if (lastPassedWaypointIndex > count - 15 && nearestIdx < 15) {
             totalLapsCompleted++
@@ -152,14 +187,15 @@ class OpponentAIController(
         lastPassedWaypointIndex = nearestIdx
         currentWaypointIndex = nearestIdx
 
-        // 2. State Machine: Barrier collision, spin-out & reverse recovery
+        // 2. Recovery state machine
         if (updateRecoveryStateMachine(dt, nearestIdx, count)) {
-            vehicle.update(dt, waypoints, roadHalfWidth = 7.0f)
+            tacticalState = AITacticalState.RECOVERING
+            vehicle.update(dt, waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = baseSurfaceGrip)
             return
         }
 
-        // 3. Dynamic Look-ahead distance scaled with speed (from 16m up to 52m)
-        val lookaheadDist = (16f + (vehicle.speedKmh * 0.17f)).coerceIn(16f, 52f)
+        // 3. Dynamic lookahead distance scaled with speed and corner tightness
+        val lookaheadDist = (16f + (vehicle.speedKmh * 0.18f)).coerceIn(16f, 52f)
         var accumulatedDist = 0f
         var lookaheadIdx = currentWaypointIndex
 
@@ -172,10 +208,10 @@ class OpponentAIController(
 
         val targetWp = waypoints[lookaheadIdx]
 
-        // 4. Calculate Geometric Racing Line (outside-inside-outside apex trajectory)
+        // 4. Calculate continuous outside-inside-outside geometric racing line
         val racingLineOffset = computeRacingLineOffset(currentWaypointIndex, lookaheadIdx, count)
 
-        // 5. Multi-Car Spatial Awareness & Avoidance
+        // 5. Multi-car spatial awareness & avoidance (using vector positions)
         val dynamicAvoidanceOffset = computeMultiCarAvoidance(
             myPos = myPos,
             playerPos = playerPos,
@@ -185,19 +221,18 @@ class OpponentAIController(
             count = count
         )
 
-        // 6. Humanized Driver Mistakes
+        // 6. Humanized driver mistakes
         updateDriverMistakes(dt)
         val finalTargetOffset = (dynamicAvoidanceOffset + mistakeOffset).coerceIn(-5.5f, 5.5f)
 
-        // Smooth lateral steering target transition
+        // Smooth lateral steering transition
         val lateralTransitionRate = when (profile.personality) {
-            AIPersonality.AGGRESSIVE -> 4.2f
-            AIPersonality.BALANCED -> 3.2f
+            AIPersonality.AGGRESSIVE -> 4.4f
+            AIPersonality.BALANCED -> 3.4f
             AIPersonality.DEFENSIVE -> 2.6f
         }
-        lateralOffset += (finalTargetOffset - lateralOffset) * (dt * lateralTransitionRate).coerceIn(0.04f, 0.40f)
+        lateralOffset += (finalTargetOffset - lateralOffset) * (dt * lateralTransitionRate).coerceIn(0.04f, 0.45f)
 
-        // Project lateral offset perpendicular to track direction
         val nextWp = waypoints[safeIndex(lookaheadIdx + 1, count)]
         val trackDx = nextWp.x - targetWp.x
         val trackDz = nextWp.z - targetWp.z
@@ -208,7 +243,7 @@ class OpponentAIController(
         val targetX = targetWp.x + normalX * lateralOffset
         val targetZ = targetWp.z + normalZ * lateralOffset
 
-        // 7. Steering Calculation with Rate-Limiting & Anti-Oscillation
+        // 7. Steering calculation with anti-oscillation rate limiter
         val dx = targetX - myPos.x
         val dz = targetZ - myPos.z
         val targetAngle = atan2(dx, dz)
@@ -220,24 +255,32 @@ class OpponentAIController(
         val steerSensitivity = profile.difficulty.steerSharpness * (if (profile.carId == "apex_spirit_86") 1.15f else 1.0f)
         val rawSteerTarget = (angleDiff * 2.35f * steerSensitivity).coerceIn(-1f, 1f)
 
-        // Smooth steering rate limiter to eliminate high-frequency twitching
         val maxSteerRate = dt * (6.5f * profile.difficulty.steerSharpness)
         vehicle.steerInput += (rawSteerTarget - vehicle.steerInput).coerceIn(-maxSteerRate, maxSteerRate)
 
-        // 8. Advanced Speed Profiling & Multi-Horizon Braking Distance
-        val targetSpeedKmh = computeTargetSpeed(currentWaypointIndex, count)
+        // 8. Multi-horizon curvature-aware speed planning
+        val targetSpeedKmh = computeTargetSpeed(currentWaypointIndex, count, surfaceGrip = baseSurfaceGrip)
+        targetSpeedKmhTelemetry = targetSpeedKmh
 
-        // 9. Progressive Throttle & Threshold Braking
-        applyThrottleAndBrakes(targetSpeedKmh)
+        // 9. Progressive throttle & threshold braking
+        val isTurningHard = abs(angleDiff) > 0.22f
+        val emergencyBrake = tacticalState == AITacticalState.AVOIDING_COLLISION
+        applyThrottleAndBrakes(targetSpeedKmh, isTurningHard = isTurningHard, emergencyBrake = emergencyBrake)
 
-        // 10. Step Vehicle Physics with Road Boundaries
-        vehicle.update(dt, waypoints, roadHalfWidth = 7.0f)
+        // 10. Step vehicle physics with track surface boundaries and environmental grip
+        vehicle.update(dt, waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = baseSurfaceGrip)
     }
 
     /**
-     * Enhanced update loop accepting full VehiclePhysics objects for deeper physical telemetry.
+     * Enhanced update loop accepting full VehiclePhysics objects for deep physical telemetry,
+     * closing speeds, safe passing lanes, and collision avoidance.
      */
-    fun updateWithVehicles(dt: Float, playerVehicle: VehiclePhysics, allCompetitors: List<OpponentAIController>) {
+    fun updateWithVehicles(
+        dt: Float,
+        playerVehicle: VehiclePhysics,
+        allCompetitors: List<OpponentAIController>,
+        baseSurfaceGrip: Float = 1.0f
+    ) {
         if (waypoints.isEmpty()) return
 
         val count = waypoints.size
@@ -259,6 +302,16 @@ class OpponentAIController(
             }
         }
 
+        if (nearestIdx == currentWaypointIndex) {
+            consecutiveSameWaypointCount++
+            if (consecutiveSameWaypointCount > 280 && count > 1) {
+                nearestIdx = safeIndex(nearestIdx + 1, count)
+                consecutiveSameWaypointCount = 0
+            }
+        } else {
+            consecutiveSameWaypointCount = 0
+        }
+
         // Lap crossing
         if (lastPassedWaypointIndex > count - 15 && nearestIdx < 15) {
             totalLapsCompleted++
@@ -274,12 +327,13 @@ class OpponentAIController(
 
         // 2. Recovery state machine
         if (updateRecoveryStateMachine(dt, nearestIdx, count)) {
-            vehicle.update(dt, waypoints, roadHalfWidth = 7.0f)
+            tacticalState = AITacticalState.RECOVERING
+            vehicle.update(dt, waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = baseSurfaceGrip)
             return
         }
 
         // 3. Dynamic look-ahead distance
-        val lookaheadDist = (16f + (vehicle.speedKmh * 0.17f)).coerceIn(16f, 52f)
+        val lookaheadDist = (16f + (vehicle.speedKmh * 0.18f)).coerceIn(16f, 52f)
         var accumulatedDist = 0f
         var lookaheadIdx = currentWaypointIndex
 
@@ -292,30 +346,32 @@ class OpponentAIController(
 
         val targetWp = waypoints[lookaheadIdx]
 
-        // 4. Calculate Geometric Racing Line
+        // 4. Calculate continuous geometric racing line
         val racingLineOffset = computeRacingLineOffset(currentWaypointIndex, lookaheadIdx, count)
 
-        // 5. Multi-Car Spatial Awareness & Avoidance
-        val dynamicAvoidanceOffset = computeMultiVehicleAvoidance(
+        // 5. Multi-Car tactical awareness, overtaking & avoidance
+        val dynamicAvoidanceOffset = computeMultiVehicleTactics(
             myVehicle = vehicle,
             playerVehicle = playerVehicle,
             otherCompetitors = allCompetitors,
             baseOffset = racingLineOffset + profile.preferredLaneOffset,
             currIdx = currentWaypointIndex,
-            count = count
+            count = count,
+            roadHalfWidth = 7.0f,
+            dt = dt
         )
 
-        // 6. Humanized Driver Mistakes
+        // 6. Humanized driver mistakes
         updateDriverMistakes(dt)
         val finalTargetOffset = (dynamicAvoidanceOffset + mistakeOffset).coerceIn(-5.5f, 5.5f)
 
         // Smooth lateral transition
         val lateralTransitionRate = when (profile.personality) {
-            AIPersonality.AGGRESSIVE -> 4.2f
-            AIPersonality.BALANCED -> 3.2f
+            AIPersonality.AGGRESSIVE -> 4.4f
+            AIPersonality.BALANCED -> 3.4f
             AIPersonality.DEFENSIVE -> 2.6f
         }
-        lateralOffset += (finalTargetOffset - lateralOffset) * (dt * lateralTransitionRate).coerceIn(0.04f, 0.40f)
+        lateralOffset += (finalTargetOffset - lateralOffset) * (dt * lateralTransitionRate).coerceIn(0.04f, 0.45f)
 
         val nextWp = waypoints[safeIndex(lookaheadIdx + 1, count)]
         val trackDx = nextWp.x - targetWp.x
@@ -327,7 +383,7 @@ class OpponentAIController(
         val targetX = targetWp.x + normalX * lateralOffset
         val targetZ = targetWp.z + normalZ * lateralOffset
 
-        // 7. Steering Calculation with Rate-Limiting & Anti-Oscillation
+        // 7. Steering calculation with anti-oscillation rate limiter
         val dx = targetX - myPos.x
         val dz = targetZ - myPos.z
         val targetAngle = atan2(dx, dz)
@@ -342,17 +398,20 @@ class OpponentAIController(
         val maxSteerRate = dt * (6.5f * profile.difficulty.steerSharpness)
         vehicle.steerInput += (rawSteerTarget - vehicle.steerInput).coerceIn(-maxSteerRate, maxSteerRate)
 
-        // 8. Advanced Speed Profiling & Multi-Horizon Braking Distance
-        val targetSpeedKmh = computeTargetSpeed(currentWaypointIndex, count)
+        // 8. Multi-horizon curvature-aware speed planning
+        val targetSpeedKmh = computeTargetSpeed(currentWaypointIndex, count, surfaceGrip = baseSurfaceGrip)
+        targetSpeedKmhTelemetry = targetSpeedKmh
 
-        // 9. Progressive Throttle & Threshold Braking
-        applyThrottleAndBrakes(targetSpeedKmh)
+        // 9. Progressive throttle & threshold braking
+        val isTurningHard = abs(angleDiff) > 0.22f
+        val emergencyBrake = tacticalState == AITacticalState.AVOIDING_COLLISION
+        applyThrottleAndBrakes(targetSpeedKmh, isTurningHard = isTurningHard, emergencyBrake = emergencyBrake)
 
-        // 10. Step Vehicle Physics
-        vehicle.update(dt, waypoints, roadHalfWidth = 7.0f)
+        // 10. Step vehicle physics with physical collision response preserved
+        vehicle.update(dt, waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = baseSurfaceGrip)
     }
 
-    private fun updateRecoveryStateMachine(dt: Float, nearestIdx: Int, count: Int): Boolean {
+    fun updateRecoveryStateMachine(dt: Float, nearestIdx: Int, count: Int): Boolean {
         if (count < 2) return false
         val forwardX = sin(vehicle.headingAngleRad)
         val forwardZ = cos(vehicle.headingAngleRad)
@@ -365,14 +424,14 @@ class OpponentAIController(
 
         when (recoveryState) {
             AIRecoveryState.NORMAL -> {
-                val isStuck = vehicle.hasCollidedBarrier && (vehicle.speedKmh < 9f || abs(vehicle.forwardVelocity) < 2.5f)
-                val isFacingWrongWay = forwardDot < -0.3f && (vehicle.speedKmh < 24f || abs(vehicle.forwardVelocity) < 6.0f)
+                val isStuck = vehicle.hasCollidedBarrier && (vehicle.speedKmh < 8f || abs(vehicle.forwardVelocity) < 2.2f)
+                val isFacingWrongWay = forwardDot < -0.35f && (vehicle.speedKmh < 24f || abs(vehicle.forwardVelocity) < 6.0f)
 
                 if (isStuck || isFacingWrongWay) {
                     recoveryState = AIRecoveryState.REVERSING
-                    recoveryTimer = 1.15f + (rng.nextFloat() * 0.4f)
+                    recoveryTimer = 1.10f + (rng.nextFloat() * 0.35f)
                     vehicle.throttle = 0f
-                    vehicle.brake = 0.95f // Acts as reverse throttle in the dual-direction powertrain
+                    vehicle.brake = 0.95f // Acts as reverse throttle when stationary in dual-direction transmission
                     val sideToTurn = if (forwardDot < -0.2f) 1.0f else -1.0f
                     vehicle.steerInput = sideToTurn
                     return true
@@ -386,16 +445,19 @@ class OpponentAIController(
                 val sideToTurn = if (forwardDot < -0.2f) 1.0f else -1.0f
                 vehicle.steerInput = sideToTurn
 
-                if (recoveryTimer <= 0f || (!vehicle.hasCollidedBarrier && (vehicle.speedKmh > 14f || abs(vehicle.forwardVelocity) > 3.8f))) {
+                // Transition out of reverse once nose begins pointing forward or timer expires
+                if (recoveryTimer <= 0f || forwardDot > 0.35f || (!vehicle.hasCollidedBarrier && abs(vehicle.forwardVelocity) > 3.5f)) {
                     recoveryState = AIRecoveryState.REALIGNING
                     recoveryTimer = 0.85f
+                    vehicle.brake = 0f
+                    vehicle.throttle = 0.80f
                 }
                 return true
             }
             AIRecoveryState.REALIGNING -> {
                 recoveryTimer -= dt
                 vehicle.brake = 0f
-                vehicle.throttle = 0.70f
+                vehicle.throttle = 0.80f // Tapping throttle shifts back to 1st gear in Phase 4 powertrain
 
                 val dx = nextWp.x - vehicle.position.x
                 val dz = nextWp.z - vehicle.position.z
@@ -405,16 +467,20 @@ class OpponentAIController(
                 while (angleDiff < -PI) angleDiff += (2 * PI).toFloat()
                 vehicle.steerInput = (angleDiff * 2.5f).coerceIn(-1f, 1f)
 
-                if (recoveryTimer <= 0f || forwardDot > 0.65f) {
+                if (recoveryTimer <= 0f || forwardDot > 0.70f) {
                     recoveryState = AIRecoveryState.RESUMING
-                    recoveryTimer = 0.5f
+                    recoveryTimer = 0.45f
+                    vehicle.throttle = 0.65f
                 }
                 return true
             }
             AIRecoveryState.RESUMING -> {
                 recoveryTimer -= dt
+                vehicle.brake = 0f
+                vehicle.throttle = 0.65f
                 if (recoveryTimer <= 0f) {
                     recoveryState = AIRecoveryState.NORMAL
+                    tacticalState = AITacticalState.FOLLOW_RACING_LINE
                 }
             }
         }
@@ -422,11 +488,13 @@ class OpponentAIController(
     }
 
     /**
-     * Computes the geometric outside-inside-outside racing line offset.
+     * Computes continuous outside-inside-outside geometric racing line offset.
+     * Evaluates corner curvature, apex approach distance, and smooth unwinding on corner exit.
      */
-    private fun computeRacingLineOffset(currIdx: Int, lookaheadIdx: Int, count: Int): Float {
+    fun computeRacingLineOffset(currIdx: Int, lookaheadIdx: Int, count: Int): Float {
         if (count < 8) return 0f
 
+        // Sample upcoming track tangent progression (horizon window)
         val step1 = max(1, count / 16)
         val step2 = max(2, count / 8)
         val step3 = max(3, count * 3 / 16)
@@ -445,23 +513,23 @@ class OpponentAIController(
         val apexDist = safeIndex(lookaheadIdx - currIdx, count)
 
         return when {
-            deltaAngle > 0.18f -> {
-                // Right-hand corner: sweep wide left entering (-3.2m), clip apex inside right (+3.4m), exit wide left (-2.6m)
+            deltaAngle > 0.14f -> {
+                // Right-hand corner: sweep wide left on entry (-3.0m), clip apex inside right (+3.2m), exit wide left (-2.4m)
                 when {
-                    apexDist > 9 -> -3.2f
-                    apexDist in 3..9 -> 3.4f
-                    else -> -2.6f
+                    apexDist > 9 -> -3.0f
+                    apexDist in 3..9 -> 3.2f
+                    else -> -2.4f
                 }
             }
-            deltaAngle < -0.18f -> {
-                // Left-hand corner: sweep wide right entering (+3.2m), clip apex inside left (-3.4m), exit wide right (+2.6m)
+            deltaAngle < -0.14f -> {
+                // Left-hand corner: sweep wide right on entry (+3.0m), clip apex inside left (-3.2m), exit wide right (+2.4m)
                 when {
-                    apexDist > 9 -> 3.2f
-                    apexDist in 3..9 -> -3.4f
-                    else -> 2.6f
+                    apexDist > 9 -> 3.0f
+                    apexDist in 3..9 -> -3.2f
+                    else -> 2.4f
                 }
             }
-            else -> 0f // Straightaway
+            else -> 0f // Straightaway: centerline baseline
         }
     }
 
@@ -503,8 +571,8 @@ class OpponentAIController(
                 // 2. Side-by-side etiquette ("Leave space")
                 if (abs(longDist) < 4.8f && abs(latDist) < 3.4f) {
                     val clearancePush = when (profile.personality) {
-                        AIPersonality.DEFENSIVE -> 3.0f
-                        AIPersonality.BALANCED -> 2.4f
+                        AIPersonality.DEFENSIVE -> 2.8f
+                        AIPersonality.BALANCED -> 2.3f
                         AIPersonality.AGGRESSIVE -> 1.8f
                     }
                     val pushDirection = if (latDist >= 0f) -clearancePush else clearancePush
@@ -543,20 +611,28 @@ class OpponentAIController(
     }
 
     /**
-     * Multi-car traffic awareness using full VehiclePhysics instances for speed & velocity differentials.
+     * Advanced Multi-Vehicle Tactical Decision Engine:
+     * - Closing speed estimation & Time-To-Collision (TTC)
+     * - Overtake commitment with hysteresis (avoids rapid side alternating)
+     * - Abandoning unsafe overtakes when clearance narrows
+     * - Tactical state transitions (FOLLOW_RACING_LINE, APPROACHING_TRAFFIC, PREPARING_OVERTAKE, OVERTAKING, DEFENDING, AVOIDING_COLLISION)
      */
-    private fun computeMultiVehicleAvoidance(
+    private fun computeMultiVehicleTactics(
         myVehicle: VehiclePhysics,
         playerVehicle: VehiclePhysics,
         otherCompetitors: List<OpponentAIController>,
         baseOffset: Float,
         currIdx: Int,
-        count: Int
+        count: Int,
+        roadHalfWidth: Float,
+        dt: Float
     ): Float {
-        var offset = baseOffset
-        draftBonusActive = false
+        if (overtakeCommitTimer > 0f) overtakeCommitTimer -= dt
+        if (sideSwitchCooldown > 0f) sideSwitchCooldown -= dt
 
-        var closestAheadDist = Float.MAX_VALUE
+        draftBonusActive = false
+        var targetOffset = baseOffset
+        var newTacticalState = AITacticalState.FOLLOW_RACING_LINE
 
         val myPos = myVehicle.position
         val forwardX = sin(myVehicle.headingAngleRad)
@@ -564,66 +640,174 @@ class OpponentAIController(
         val rightX = forwardZ
         val rightZ = -forwardX
 
-        val checkVehicle: (VehiclePhysics) -> Unit = { comp ->
+        var closestSlowerAhead: VehiclePhysics? = null
+        var closestSlowerDist = Float.MAX_VALUE
+        var closestSlowerLatDist = 0f
+        var closestSlowerSpeedDelta = 0f
+
+        var immediateHazard: VehiclePhysics? = null
+        var immediateHazardDist = Float.MAX_VALUE
+
+        var closestPursuerDist = Float.MAX_VALUE
+
+        val inspectVehicle: (VehiclePhysics) -> Unit = { comp ->
             if (comp !== myVehicle) {
                 val toCompX = comp.position.x - myPos.x
                 val toCompZ = comp.position.z - myPos.z
                 val longDist = toCompX * forwardX + toCompZ * forwardZ
                 val latDist = toCompX * rightX + toCompZ * rightZ
 
-                // Hazard detection: Car ahead is spun out, stopped, or significantly slower
-                if (longDist in 2.0f..35.0f && abs(latDist) < 3.2f && (comp.speedKmh < 22f || abs(comp.forwardVelocity) < 6f)) {
-                    val avoidRight = latDist < 0f || baseOffset > 0f
-                    val avoidDelta = if (avoidRight) 3.6f else -3.6f
-                    offset = (offset + avoidDelta).coerceIn(-5.5f, 5.5f)
-                }
+                // 1. Immediate collision risk ahead: close distance with high closing velocity in direct path
+                val closingSpeedMs = myVehicle.forwardVelocity - comp.forwardVelocity
+                val ttcSec = if (closingSpeedMs > 0.5f) longDist / closingSpeedMs else Float.MAX_VALUE
 
-                // Drafting detection
-                if (longDist in 4.0f..28.0f && abs(latDist) < 2.2f) {
-                    if (longDist < closestAheadDist) {
-                        closestAheadDist = longDist
+                if (longDist in 1.2f..8.5f && abs(latDist) < 1.8f) {
+                    if (closingSpeedMs > 2.0f || comp.speedKmh < 18f || ttcSec < 1.1f) {
+                        if (longDist < immediateHazardDist) {
+                            immediateHazardDist = longDist
+                            immediateHazard = comp
+                        }
                     }
                 }
 
-                // Side-by-side room
+                // 2. Slower vehicle ahead in traffic
+                if (longDist in 4.0f..35.0f && abs(latDist) < 3.2f) {
+                    val isSlower = (comp.forwardVelocity < myVehicle.forwardVelocity - 0.8f) || (comp.speedKmh < myVehicle.speedKmh - 4f)
+                    if (isSlower && longDist < closestSlowerDist) {
+                        closestSlowerDist = longDist
+                        closestSlowerAhead = comp
+                        closestSlowerLatDist = latDist
+                        closestSlowerSpeedDelta = closingSpeedMs
+                    }
+                }
+
+                // 3. Side-by-side racing room
                 if (abs(longDist) < 4.8f && abs(latDist) < 3.4f) {
-                    val clearance = when (profile.personality) {
-                        AIPersonality.DEFENSIVE -> 3.0f
-                        AIPersonality.BALANCED -> 2.4f
+                    val clearancePush = when (profile.personality) {
+                        AIPersonality.DEFENSIVE -> 2.8f
+                        AIPersonality.BALANCED -> 2.3f
                         AIPersonality.AGGRESSIVE -> 1.8f
                     }
-                    val push = if (latDist >= 0f) -clearance else clearance
-                    offset = (offset + push).coerceIn(-5.5f, 5.5f)
+                    val push = if (latDist >= 0f) -clearancePush else clearancePush
+                    targetOffset = (targetOffset + push).coerceIn(-5.5f, 5.5f)
                 }
 
-                // Defensive blocking (Viper / Aggressive)
-                if (profile.personality == AIPersonality.AGGRESSIVE && longDist in -16.0f..-3.0f && abs(latDist) < 3.0f) {
-                    offset = if (baseOffset >= 0f) 2.2f else -2.2f
+                // 4. Pursuer behind detection
+                if (longDist in -18.0f..-3.0f && abs(latDist) < 3.0f) {
+                    if (abs(longDist) < closestPursuerDist) {
+                        closestPursuerDist = abs(longDist)
+                    }
                 }
             }
         }
 
-        checkVehicle(playerVehicle)
+        inspectVehicle(playerVehicle)
         for (opp in otherCompetitors) {
-            checkVehicle(opp.vehicle)
+            inspectVehicle(opp.vehicle)
         }
 
-        if (closestAheadDist < 30f) {
-            val passThreshold = when (profile.personality) {
-                AIPersonality.AGGRESSIVE -> 14.0f
-                AIPersonality.BALANCED -> 10.0f
-                AIPersonality.DEFENSIVE -> 8.0f
+        // Decision Tree based on detected traffic
+        if (immediateHazard != null) {
+            // Immediate collision avoidance
+            newTacticalState = AITacticalState.AVOIDING_COLLISION
+            val hazard = immediateHazard!!
+            val toHazardX = hazard.position.x - myPos.x
+            val toHazardZ = hazard.position.z - myPos.z
+            val latDist = toHazardX * rightX + toHazardZ * rightZ
+
+            // Check road bounds to select safe evasive direction
+            val avoidRight = latDist < 0f || (baseOffset >= 0f && (roadHalfWidth - abs(myVehicle.trackLateralDistance) > 2.0f))
+            val avoidDelta = if (avoidRight) 3.5f else -3.5f
+            targetOffset = (baseOffset + avoidDelta).coerceIn(-5.5f, 5.5f)
+            overtakeCommitTimer = 0f
+            overtakeTargetVehicle = null
+        } else if (closestSlowerAhead != null) {
+            val target = closestSlowerAhead!!
+            val passThresholdDist = when (profile.personality) {
+                AIPersonality.AGGRESSIVE -> 18.0f
+                AIPersonality.BALANCED -> 14.0f
+                AIPersonality.DEFENSIVE -> 10.0f
             }
-            if (closestAheadDist < passThreshold) {
-                val passRight = baseOffset < 0.8f
-                val passWidth = if (profile.personality == AIPersonality.AGGRESSIVE) 3.5f else 3.0f
-                offset = if (passRight) baseOffset + passWidth else baseOffset - passWidth
+
+            if (closestSlowerDist < passThresholdDist) {
+                // If currently committed to an overtake on this vehicle
+                if (overtakeCommitTimer > 0f && overtakeTargetVehicle === target) {
+                    // Check if committed passing lane remains physically safe
+                    val passingOffset = (baseOffset + (overtakeSide * 3.2f)).coerceIn(-5.5f, 5.5f)
+                    val clearanceToWall = roadHalfWidth - abs(passingOffset)
+
+                    if (clearanceToWall < 1.1f) {
+                        // Path became unsafe: abandon overtake
+                        newTacticalState = AITacticalState.APPROACHING_TRAFFIC
+                        overtakeCommitTimer = 0f
+                        overtakeTargetVehicle = null
+                        targetOffset = baseOffset
+                        draftBonusActive = true
+                    } else {
+                        // Path is safe: continue overtaking on committed side
+                        newTacticalState = AITacticalState.OVERTAKING
+                        targetOffset = passingOffset
+                    }
+                } else if (sideSwitchCooldown <= 0f) {
+                    // Assess left and right passing lanes
+                    val rightPassingOffset = (baseOffset + 3.2f).coerceIn(-5.5f, 5.5f)
+                    val leftPassingOffset = (baseOffset - 3.2f).coerceIn(-5.5f, 5.5f)
+
+                    val rightClearance = roadHalfWidth - abs(rightPassingOffset)
+                    val leftClearance = roadHalfWidth - abs(leftPassingOffset)
+
+                    val canPassRight = rightClearance >= 1.6f && closestSlowerLatDist <= 0.6f
+                    val canPassLeft = leftClearance >= 1.6f && closestSlowerLatDist >= -0.6f
+
+                    if (canPassRight || canPassLeft) {
+                        newTacticalState = AITacticalState.PREPARING_OVERTAKE
+                        val selectedSide = when {
+                            canPassRight && !canPassLeft -> 1.0f
+                            canPassLeft && !canPassRight -> -1.0f
+                            profile.personality == AIPersonality.AGGRESSIVE -> {
+                                // Aggressive dives to inside of upcoming corner
+                                if (baseOffset < 0f) 1.0f else -1.0f
+                            }
+                            else -> if (rightClearance >= leftClearance) 1.0f else -1.0f
+                        }
+
+                        overtakeSide = selectedSide
+                        overtakeCommitTimer = 1.9f // Commit for ~2 seconds
+                        sideSwitchCooldown = 2.6f
+                        overtakeTargetVehicle = target
+                        targetOffset = (baseOffset + overtakeSide * 3.2f).coerceIn(-5.5f, 5.5f)
+                    } else {
+                        // Neither side has enough clearance: stay in slipstream
+                        newTacticalState = AITacticalState.APPROACHING_TRAFFIC
+                        draftBonusActive = true
+                        targetOffset = baseOffset
+                    }
+                } else {
+                    // In side switch cooldown: follow in drafting wake
+                    newTacticalState = AITacticalState.APPROACHING_TRAFFIC
+                    draftBonusActive = true
+                    targetOffset = baseOffset
+                }
             } else {
+                // Slower car ahead but not yet within overtake trigger distance: approach and draft
+                newTacticalState = AITacticalState.APPROACHING_TRAFFIC
                 draftBonusActive = true
+                targetOffset = baseOffset
+            }
+        } else if (closestPursuerDist < 16.0f && profile.personality != AIPersonality.DEFENSIVE) {
+            // Defend line against close pursuer
+            newTacticalState = AITacticalState.DEFENDING
+            targetOffset = if (baseOffset >= 0f) 1.8f else -1.8f
+        } else {
+            newTacticalState = AITacticalState.FOLLOW_RACING_LINE
+            targetOffset = baseOffset
+            if (overtakeCommitTimer <= 0f) {
+                overtakeTargetVehicle = null
             }
         }
 
-        return offset.coerceIn(-5.5f, 5.5f)
+        tacticalState = newTacticalState
+        return targetOffset.coerceIn(-5.5f, 5.5f)
     }
 
     private fun updateDriverMistakes(dt: Float) {
@@ -643,26 +827,29 @@ class OpponentAIController(
     }
 
     /**
-     * Advanced Speed Profiling with Multi-Horizon Braking Distance Calculation.
+     * Advanced Speed Profiling with Curvature Analysis and Multi-Horizon Braking Distance.
      * Computes the maximum safe cornering velocity across upcoming bends and calculates
      * required braking distances so opponents decelerate smoothly before corners rather than overshooting.
      */
-    private fun computeTargetSpeed(currIdx: Int, count: Int): Float {
+    fun computeTargetSpeed(currIdx: Int, count: Int, surfaceGrip: Float = 1.0f): Float {
         if (count < 3) return 200f
-        var minSafeSpeedKmh = 290f
+        val effectiveGrip = surfaceGrip.coerceIn(0.35f, 1.25f)
+        val gripFactor = sqrt(effectiveGrip)
+        var minSafeSpeedKmh = 290f * gripFactor
         var accumulatedTrackDist = 0f
 
-        val decelerationCoeff = 9.8f * profile.difficulty.brakeMargin * (if (profile.personality == AIPersonality.AGGRESSIVE) 1.12f else 1.0f)
+        val decelerationCoeff = 9.81f * effectiveGrip * profile.difficulty.brakeMargin * (if (profile.personality == AIPersonality.AGGRESSIVE) 1.12f else 1.0f)
 
-        // Sample upcoming waypoints across multiple horizons up to 110m ahead
-        val maxSteps = min(18, count - 2)
+        // Sample upcoming waypoints across multiple horizons up to 130m ahead using adaptive track stride
+        val stride = max(1, count / 32)
+        val maxSteps = min(12, count / (stride * 2))
         for (step in 1..maxSteps) {
-            val idxA = safeIndex(currIdx + step, count)
-            val idxB = safeIndex(currIdx + step + 1, count)
-            val idxC = safeIndex(currIdx + step + 2, count)
+            val idxA = safeIndex(currIdx + (step - 1) * stride, count)
+            val idxB = safeIndex(currIdx + step * stride, count)
+            val idxC = safeIndex(currIdx + (step + 1) * stride, count)
 
             accumulatedTrackDist += waypoints[idxA].distanceTo(waypoints[idxB])
-            if (accumulatedTrackDist > 120f) break
+            if (accumulatedTrackDist > 130f) break
 
             val wpA = waypoints[idxA]
             val wpB = waypoints[idxB]
@@ -674,15 +861,15 @@ class OpponentAIController(
             while (cornerDelta > PI) cornerDelta -= (2 * PI).toFloat()
             cornerDelta = abs(cornerDelta)
 
-            // Safe corner apex speed based on bend curvature
+            // Safe corner apex speed based on bend curvature and surface grip
             val cornerApexSpeedKmh = when {
-                cornerDelta > 0.65f -> 68f   // Hairpin
-                cornerDelta > 0.38f -> 108f  // Medium bend
-                cornerDelta > 0.16f -> 175f  // Fast sweeper
-                else -> 290f                // Flat out
+                cornerDelta > 0.40f -> 72f * gripFactor   // Hairpin
+                cornerDelta > 0.22f -> 110f * gripFactor  // Medium bend
+                cornerDelta > 0.10f -> 170f * gripFactor  // Fast sweeper
+                else -> 290f * gripFactor                 // Flat out
             }
 
-            // Braking distance equation: v_max_now = sqrt(v_target^2 + 2 * a * d)
+            // Kinematic braking distance equation: v_max_now = sqrt(v_target^2 + 2 * a * d)
             val apexSpeedMs = cornerApexSpeedKmh / 3.6f
             val maxAllowableSpeedMs = sqrt(apexSpeedMs * apexSpeedMs + 2.0f * decelerationCoeff * accumulatedTrackDist)
             val maxAllowableSpeedKmh = maxAllowableSpeedMs * 3.6f
@@ -692,11 +879,11 @@ class OpponentAIController(
             }
         }
 
-        // Vehicle powertrain & characteristics adjustments
+        // Vehicle powertrain & aerodynamic downforce characteristics
         if (profile.carId == "apex_monza_v10") {
-            minSafeSpeedKmh += 14f // Higher top-end
+            minSafeSpeedKmh += 14f // Higher downforce & high-speed stability
         } else if (profile.carId == "apex_spirit_86") {
-            minSafeSpeedKmh -= 4f  // Agile lower-displacement
+            minSafeSpeedKmh -= 4f  // Agile lower-displacement tuner setup
         }
 
         var speedMultiplier = profile.difficulty.targetSpeedMultiplier
@@ -709,23 +896,35 @@ class OpponentAIController(
 
     /**
      * Progressive throttle and threshold braking control.
+     * Prevents throttle/brake hunting and handles emergency collision braking.
      */
-    private fun applyThrottleAndBrakes(targetSpeedKmh: Float) {
+    fun applyThrottleAndBrakes(
+        targetSpeedKmh: Float,
+        isTurningHard: Boolean = false,
+        emergencyBrake: Boolean = false
+    ) {
+        if (emergencyBrake) {
+            vehicle.throttle = 0f
+            vehicle.brake = 0.90f
+            return
+        }
+
         val speedDiff = vehicle.speedKmh - targetSpeedKmh
 
-        if (speedDiff < -4f) {
+        if (speedDiff < -3.5f) {
             // Accelerate progressively
-            val accelDemand = ((-speedDiff) / 22f).coerceIn(0.65f, 1.0f)
-            vehicle.throttle = accelDemand
+            val baseAccel = ((-speedDiff) / 22f).coerceIn(0.65f, 1.0f)
+            // Roll onto throttle smoothly on corner exit to avoid wheelspin
+            vehicle.throttle = if (isTurningHard) baseAccel * 0.72f else baseAccel
             vehicle.brake = 0f
-        } else if (speedDiff > (3.5f * profile.difficulty.brakeMargin)) {
+        } else if (speedDiff > (3.0f * profile.difficulty.brakeMargin)) {
             // Decelerate with threshold braking
             vehicle.throttle = 0f
-            val brakeDemand = (speedDiff / 26f).coerceIn(0.45f, 1.0f)
+            val brakeDemand = (speedDiff / 24f).coerceIn(0.40f, 0.95f)
             vehicle.brake = brakeDemand
         } else {
-            // Maintain balance speed through the apex
-            vehicle.throttle = 0.50f
+            // Balance throttle through corner apex
+            vehicle.throttle = if (isTurningHard) 0.38f else 0.50f
             vehicle.brake = 0f
         }
     }
@@ -752,3 +951,4 @@ class OpponentAIController(
         return (totalLapsCompleted * count + currIdx + segmentFraction)
     }
 }
+

@@ -2,6 +2,9 @@ package com.example
 
 import com.example.racing.ai.AIDifficulty
 import com.example.racing.ai.AIDriverProfile
+import com.example.racing.ai.AIPersonality
+import com.example.racing.ai.AIRecoveryState
+import com.example.racing.ai.AITacticalState
 import com.example.racing.ai.OpponentAIController
 import com.example.racing.engine.CarMeshBuilder
 import com.example.racing.engine.Material
@@ -226,8 +229,9 @@ class ExampleUnitTest {
         vehicle.forwardVelocity = 0f
         vehicle.throttle = 0f
         vehicle.brake = 1.0f
+        vehicle.reverseHoldTimer = 0.75f
 
-        // Initial step should detect stop and shift to reverse (gear 0)
+        // Step with brake hold threshold reached shifts to reverse (gear 0)
         vehicle.update(0.016f)
         assertEquals("R", vehicle.powertrain.getGearDisplayName())
         assertEquals(0, vehicle.powertrain.currentGear)
@@ -1128,11 +1132,84 @@ class ExampleUnitTest {
         // Test smooth steering return
         var currentSteer = 1.0f
         val neutralTarget = 0.0f
-        val rampSpeed = 0.36f
+        val rampSpeed = 0.42f
         for (step in 0 until 6) {
             currentSteer += (neutralTarget - currentSteer) * rampSpeed
         }
         assertTrue("Steering must return smoothly towards center when released", currentSteer < 0.10f)
+    }
+
+    @Test
+    fun testPhase2SteeringDirectionConventions() {
+        // Consistent Standard: Left = positive steer (+1.0f), Right = negative steer (-1.0f), Neutral = 0.0f
+        fun resolveTarget(left: Boolean, right: Boolean): Float = when {
+            left && !right -> 1.0f
+            right && !left -> -1.0f
+            else -> 0.0f
+        }
+
+        assertEquals("Left control alone must produce positive steer lock", 1.0f, resolveTarget(left = true, right = false), 0.001f)
+        assertEquals("Right control alone must produce negative steer lock", -1.0f, resolveTarget(left = false, right = true), 0.001f)
+        assertEquals("Simultaneous dual inputs must resolve to neutral 0.0f", 0.0f, resolveTarget(left = true, right = true), 0.001f)
+        assertEquals("Neither control pressed must resolve to neutral 0.0f", 0.0f, resolveTarget(left = false, right = false), 0.001f)
+
+        // Releasing one control while other is pressed
+        var left = true
+        var right = true
+        assertEquals(0.0f, resolveTarget(left, right), 0.001f)
+        right = false
+        assertEquals(1.0f, resolveTarget(left, right), 0.001f)
+        left = false
+        right = true
+        assertEquals(-1.0f, resolveTarget(left, right), 0.001f)
+    }
+
+    @Test
+    fun testPhase2AutomaticReverseHoldDelay() {
+        val vp = com.example.racing.physics.VehiclePhysics()
+        vp.forwardVelocity = 0f
+        vp.powertrain.currentGear = 2 // 1st gear
+
+        // 1. Holding brake for 0.40s while stopped: must NOT shift into reverse!
+        vp.throttle = 0f
+        vp.brake = 0.8f
+        vp.update(dt = 0.40f, emptyList())
+        assertEquals("Vehicle must remain in 1st gear when stationary with brief brake hold", 2, vp.powertrain.currentGear)
+        assertTrue("Mechanical brakes must hold vehicle stationary", vp.forwardVelocity == 0f)
+
+        // 2. Holding brake for an additional 0.40s (total > 0.75s): shifts to reverse
+        vp.update(dt = 0.40f, emptyList())
+        assertEquals("Vehicle shifts to reverse after holding brake for >= 0.75s", 0, vp.powertrain.currentGear)
+
+        // 3. Applying forward throttle in reverse gear: shifts back to 1st gear
+        vp.brake = 0f
+        vp.throttle = 0.8f
+        vp.update(dt = 0.05f, emptyList())
+        assertEquals("Pressing forward throttle in reverse must shift to 1st gear", 2, vp.powertrain.currentGear)
+    }
+
+    @Test
+    fun testPhase2CountdownGridImmobility() {
+        val vp = com.example.racing.physics.VehiclePhysics()
+        vp.resetAt(Vector3f(0f, 0f, 0f), 0f)
+
+        // Emulate starting grid countdown lock
+        vp.throttle = 0f
+        vp.brake = 1f
+        vp.forwardVelocity = 0f
+        vp.powertrain.currentGear = 2
+        vp.reverseHoldTimer = 0f
+
+        // Step physics multiple frames during countdown
+        for (i in 0 until 10) {
+            vp.forwardVelocity = 0f
+            vp.reverseHoldTimer = 0f
+            vp.powertrain.currentGear = 2
+        }
+
+        assertEquals("Car must have zero forward velocity during countdown", 0f, vp.forwardVelocity, 0.001f)
+        assertEquals("Car must remain in 1st gear on grid", 2, vp.powertrain.currentGear)
+        assertEquals("Reverse hold timer must remain 0 during countdown", 0f, vp.reverseHoldTimer, 0.001f)
     }
 
     @Test
@@ -1180,7 +1257,779 @@ class ExampleUnitTest {
         val scaled = if (kotlin.math.abs(validTilt) < 0.05f) 0f else (validTilt - 0.05f) / 0.95f
         assertTrue("Intentional tilt must be mapped proportionally", scaled > 0.40f)
     }
+
+    // =============================================================================================
+    // PHASE 3 — VEHICLE PHYSICS, COLLISION RESOLUTION & PHYSICAL CONTACT TESTS
+    // =============================================================================================
+
+    @Test
+    fun testPhase3SeparatedVehiclesDoNotCollide() {
+        val v1 = VehiclePhysics().apply { position.set(0f, 0.35f, 0f) }
+        val v2 = VehiclePhysics().apply { position.set(10f, 0.35f, 0f) }
+
+        val manifold = VehicleCollisionSystem.testOBBCollision(v1, v2)
+        org.junit.Assert.assertNull("Separated vehicles must produce null contact manifold", manifold)
+    }
+
+    @Test
+    fun testPhase3OverlappingVehiclesAreSeparated() {
+        // Cars overlapping along Z axis
+        val v1 = VehiclePhysics().apply { position.set(0f, 0.35f, 3.80f) }
+        val v2 = VehiclePhysics().apply { position.set(0f, 0.35f, 0f) }
+
+        val initialOverlap = (VehicleCollisionSystem.VEHICLE_HALF_LENGTH * 2f) - (v1.position.z - v2.position.z)
+        assertTrue("Initial setup must have positive overlap", initialOverlap > 0f)
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(v1, v2),
+            playerVehicle = v1
+        )
+
+        val newDist = v1.position.z - v2.position.z
+        val newOverlap = (VehicleCollisionSystem.VEHICLE_HALF_LENGTH * 2f) - newDist
+        assertTrue("Vehicles must be pushed apart", newDist > 3.80f)
+        assertTrue("Remaining overlap after solver must be minimal", newOverlap < 0.05f)
+    }
+
+    @Test
+    fun testPhase3HeadOnCollisionResponse() {
+        val v1 = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 2.0f)
+            headingAngleRad = kotlin.math.PI.toFloat() // Facing towards -Z
+            forwardVelocity = 25f // Moving towards -Z (towards v2)
+        }
+        val v2 = VehiclePhysics().apply {
+            position.set(0f, 0.35f, -2.0f)
+            headingAngleRad = 0f // Facing towards +Z
+            forwardVelocity = 25f // Moving towards +Z (towards v1)
+        }
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(v1, v2),
+            playerVehicle = v1
+        )
+
+        assertTrue("v1 forward velocity must decrease significantly or reverse", v1.forwardVelocity < 12f)
+        assertTrue("v2 forward velocity must decrease significantly or reverse", v2.forwardVelocity < 12f)
+        assertTrue("Vehicles must not blow up with NaNs", !v1.forwardVelocity.isNaN() && !v2.forwardVelocity.isNaN())
+    }
+
+    @Test
+    fun testPhase3RearEndCollisionMomentumTransfer() {
+        // Front vehicle moving slower
+        val front = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 4.0f)
+            headingAngleRad = 0f
+            forwardVelocity = 15f
+        }
+        // Rear vehicle moving faster, hitting front from behind
+        val rear = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 0f)
+            headingAngleRad = 0f
+            forwardVelocity = 40f
+        }
+
+        val frontInitialV = front.forwardVelocity
+        val rearInitialV = rear.forwardVelocity
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(front, rear),
+            playerVehicle = front
+        )
+
+        assertTrue("Front car must be boosted forward by rear impact", front.forwardVelocity > frontInitialV)
+        assertTrue("Rear car must be decelerated by impact", rear.forwardVelocity < rearInitialV)
+    }
+
+    @Test
+    fun testPhase3SideContactSeparation() {
+        // Two cars racing side-by-side, overlapping laterally by 0.30m
+        val left = VehiclePhysics().apply {
+            position.set(1.5f, 0.35f, 20f)
+            headingAngleRad = 0f
+            forwardVelocity = 30f
+        }
+        val right = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 20f)
+            headingAngleRad = 0f
+            forwardVelocity = 30f
+        }
+
+        val initialDeltaX = left.position.x - right.position.x
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(left, right),
+            playerVehicle = left
+        )
+
+        val newDeltaX = left.position.x - right.position.x
+        assertTrue("Side contact must push vehicles laterally apart", newDeltaX > initialDeltaX)
+        assertTrue("Forward velocity should remain largely preserved during side swipe", left.forwardVelocity > 20f && right.forwardVelocity > 20f)
+    }
+
+    @Test
+    fun testPhase3AngledContactProducesPlausibleYawDeflection() {
+        // T-Bone / PIT style contact on rear-quarter
+        val target = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 10f)
+            headingAngleRad = 0f
+            forwardVelocity = 20f
+        }
+        val striker = VehiclePhysics().apply {
+            position.set(1.2f, 0.35f, 8.5f)
+            headingAngleRad = -0.45f
+            forwardVelocity = 25f
+        }
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(target, striker),
+            playerVehicle = target
+        )
+
+        assertTrue("Angled impact must generate yaw deflection on vehicle", target.yawRate != 0f || striker.yawRate != 0f)
+        assertTrue("Yaw rate must be bounded and not NaN", !target.yawRate.isNaN() && kotlin.math.abs(target.yawRate) <= 3.0f)
+    }
+
+    @Test
+    fun testPhase3FastMovingVehiclesDoNotTunnel() {
+        // Closing speed along Z
+        val v1 = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 1.5f)
+            headingAngleRad = 0f
+            forwardVelocity = -30f
+        }
+        val v2 = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 0f)
+            headingAngleRad = 0f
+            forwardVelocity = 30f
+        }
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(v1, v2),
+            playerVehicle = v1
+        )
+
+        assertTrue("Vehicles must not tunnel through each other", v1.position.z >= v2.position.z)
+    }
+
+    @Test
+    fun testPhase3MultipleNearbyVehiclesChainResolution() {
+        // 3 cars bumper to bumper
+        val c1 = VehiclePhysics().apply { position.set(0f, 0.35f, 7.6f) }
+        val c2 = VehiclePhysics().apply { position.set(0f, 0.35f, 3.8f) }
+        val c3 = VehiclePhysics().apply { position.set(0f, 0.35f, 0.0f) }
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(c1, c2, c3),
+            playerVehicle = c1
+        )
+
+        val dist12 = c1.position.z - c2.position.z
+        val dist23 = c2.position.z - c3.position.z
+
+        assertTrue("Chain collision must push front car forward", dist12 >= 3.8f)
+        assertTrue("Chain collision must push rear car backward", dist23 >= 3.8f)
+    }
+
+    @Test
+    fun testPhase3StationaryAndMovingVehicleInteraction() {
+        val stationary = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 3.5f)
+            forwardVelocity = 0f
+        }
+        val moving = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 0f)
+            forwardVelocity = 30f
+        }
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(stationary, moving),
+            playerVehicle = stationary
+        )
+
+        assertTrue("Stationary vehicle must be set into forward motion by impact", stationary.forwardVelocity > 0f)
+        assertTrue("Moving vehicle must lose momentum", moving.forwardVelocity < 30f)
+    }
+
+    @Test
+    fun testPhase3DegenerateCoordinatesSafeguard() {
+        // Exactly identical positions
+        val v1 = VehiclePhysics().apply { position.set(5f, 0.35f, 5f) }
+        val v2 = VehiclePhysics().apply { position.set(5f, 0.35f, 5f) }
+
+        val manifold = VehicleCollisionSystem.testOBBCollision(v1, v2)
+        org.junit.Assert.assertNotNull("Degenerate coordinates must still detect overlap safely", manifold)
+        assertFalse("Manifold normal must not be NaN", manifold!!.normalX.isNaN() || manifold.normalZ.isNaN())
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(v1, v2),
+            playerVehicle = v1
+        )
+
+        assertFalse("Vehicle positions must not be NaN after degenerate resolution", v1.position.x.isNaN() || v2.position.x.isNaN())
+        assertTrue("Degenerate vehicles must be pushed apart", v1.position.distanceTo(v2.position) > 0.01f)
+    }
+
+    @Test
+    fun testPhase3RepeatedCollisionFramesStability() {
+        val v1 = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 1.0f)
+            forwardVelocity = 10f
+        }
+        val v2 = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 0f)
+            forwardVelocity = 12f
+        }
+
+        // Simulate 20 consecutive collision steps
+        for (step in 0 until 20) {
+            VehicleCollisionSystem.resolveVehicleCollisions(
+                vehicles = listOf(v1, v2),
+                playerVehicle = v1
+            )
+            v1.update(0.0125f)
+            v2.update(0.0125f)
+        }
+
+        assertFalse("Repeated collisions must not produce NaNs", v1.position.z.isNaN() || v2.position.z.isNaN())
+        assertTrue("Velocities must stay within physically bounded range", kotlin.math.abs(v1.forwardVelocity) < 100f && kotlin.math.abs(v2.forwardVelocity) < 100f)
+        assertTrue("Vehicles must maintain separation", v1.position.z > v2.position.z)
+    }
+
+    // =============================================================================================
+    // PHASE 4 — ADVANCED VEHICLE HANDLING, TIRE GRIP, BRAKING & DRIVING REALISM TESTS
+    // =============================================================================================
+
+    @Test
+    fun testPhase4KammFrictionCircleCombinedSlipAdhesion() {
+        val tire = TireModel(dPeakFriction = 1.25f)
+        val normalLoad = 4000f // 4 kN normal force
+        val maxPeakAdhesion = normalLoad * 1.25f // 5000 N
+
+        // 1. Moderate acceleration (well within grip limit)
+        val lowDemandN = 2000f
+        val resLow = tire.calculateCombinedAdhesion(lowDemandN, normalLoad, surfaceGrip = 1.0f)
+        assertEquals("Under grip limit, longitudinal force matches demand", lowDemandN, resLow.actualFx, 0.01f)
+        assertTrue("Residual lateral capacity must be high under moderate acceleration", resLow.lateralCapacityFactor > 0.85f)
+        assertTrue("Micro-slip ratio should be low", resLow.slipRatio < 0.20f)
+
+        // 2. High acceleration saturating tire grip (wheelspin)
+        val excessDemandN = 8000f // Far exceeds 5000 N max adhesion
+        val resHigh = tire.calculateCombinedAdhesion(excessDemandN, normalLoad, surfaceGrip = 1.0f)
+        assertTrue("Saturated force cannot exceed peak adhesion", resHigh.actualFx <= maxPeakAdhesion)
+        assertEquals("Dynamic sliding friction should be ~90% of peak", maxPeakAdhesion * 0.90f, resHigh.actualFx, 0.1f)
+        assertTrue("Wheelspin slip ratio must be high", resHigh.slipRatio >= 0.35f)
+        assertTrue("Residual lateral capacity must drop under heavy wheelspin", resHigh.lateralCapacityFactor <= 0.25f)
+
+        // 3. Low-grip surface (grass/wet) reduces peak adhesion proportionally
+        val resWet = tire.calculateCombinedAdhesion(lowDemandN, normalLoad, surfaceGrip = 0.50f) // 2500 N peak
+        assertTrue("Under reduced surface grip, actual force remains bounded", resWet.actualFx <= 2500f)
+        assertTrue("Slip ratio increases on slippery surface", resWet.slipRatio > resLow.slipRatio)
+    }
+
+    @Test
+    fun testPhase4SmoothLaunchFromRestAndTractionLimits() {
+        val valkyrie = VehiclePhysics()
+        valkyrie.throttle = 1.0f
+
+        // Step vehicle 10 physics frames from standstill
+        for (i in 0 until 10) {
+            valkyrie.update(0.016f)
+        }
+
+        assertTrue("Vehicle accelerates forward smoothly from standstill", valkyrie.forwardVelocity > 0f)
+        assertTrue("Velocity progression is physically plausible (not teleporting)", valkyrie.forwardVelocity < 15f)
+        assertTrue("Wheelspin is bounded and controlled", valkyrie.wheelSpinRl in 0f..1f)
+        assertFalse("Forward velocity must not be NaN", valkyrie.forwardVelocity.isNaN())
+    }
+
+    @Test
+    fun testPhase4EngineBrakingOnThrottleRelease() {
+        val car = VehiclePhysics()
+        car.forwardVelocity = 25f // ~90 km/h in forward gear
+        car.powertrain.currentGear = 3 // 2nd gear
+        car.powertrain.currentRpm = 5000f
+        car.throttle = 0f
+        car.brake = 0f
+
+        val initialSpeed = car.forwardVelocity
+        for (i in 0 until 20) {
+            car.update(0.016f)
+        }
+
+        assertTrue("Releasing throttle in forward gear must cause natural engine deceleration", car.forwardVelocity < initialSpeed)
+        assertTrue("Vehicle must maintain forward direction during engine braking", car.forwardVelocity > 0f)
+    }
+
+    @Test
+    fun testPhase4BrakeBiasAndTrailBrakingLateralCoupling() {
+        // Test that heavy braking causes front weight transfer and reduces steering capacity
+        val carStraight = VehiclePhysics()
+        carStraight.forwardVelocity = 30f
+        carStraight.brake = 1.0f
+        carStraight.update(0.016f)
+
+        assertTrue("Braking must cause forward deceleration", carStraight.forwardVelocity < 30f)
+        assertTrue("Front tire slip must be engaged under heavy braking", carStraight.tireSlipFl > 0f)
+
+        // Trail braking: heavy braking while cornering
+        val carTurning = VehiclePhysics()
+        carTurning.forwardVelocity = 30f
+        carTurning.steerInput = 1.0f // Left turn
+        carTurning.brake = 1.0f // Full emergency brake while steering
+        carTurning.update(0.05f)
+
+        // Compare cornering yaw rate with non-braking car
+        val carCoastTurn = VehiclePhysics()
+        carCoastTurn.forwardVelocity = 30f
+        carCoastTurn.steerInput = 1.0f
+        carCoastTurn.brake = 0.0f
+        carCoastTurn.update(0.05f)
+
+        assertTrue("Both cars must steer into the turn", carTurning.currentSteerAngleRad > 0f && carCoastTurn.currentSteerAngleRad > 0f)
+        assertTrue("Car under locked brakes experiences trail braking understeer vs coasting", carTurning.yawRate < carCoastTurn.yawRate)
+    }
+
+    @Test
+    fun testPhase4SpeedSensitiveSteeringAttenuation() {
+        val carLowSpeed = VehiclePhysics()
+        carLowSpeed.forwardVelocity = 5f // Low speed (~18 km/h)
+        carLowSpeed.steerInput = 1.0f
+        carLowSpeed.update(0.05f)
+
+        val carHighSpeed = VehiclePhysics()
+        carHighSpeed.forwardVelocity = 60f // High speed (~216 km/h)
+        carHighSpeed.steerInput = 1.0f
+        carHighSpeed.update(0.05f)
+
+        assertTrue("Low speed steering angle should be larger than high speed steering angle",
+            carLowSpeed.currentSteerAngleRad > carHighSpeed.currentSteerAngleRad)
+    }
+
+    @Test
+    fun testPhase4SteeringSelfCenteringToNeutral() {
+        val car = VehiclePhysics()
+        car.forwardVelocity = 20f
+        car.steerInput = 1.0f
+        car.update(0.1f) // Establish steering lock
+
+        val lockAngle = car.currentSteerAngleRad
+        assertTrue("Steering lock must be established", lockAngle > 0.1f)
+
+        // Release steering input
+        car.steerInput = 0f
+        for (i in 0 until 15) {
+            car.update(0.016f)
+        }
+
+        assertTrue("Releasing steering must smoothly return towards neutral", car.currentSteerAngleRad < lockAngle * 0.35f)
+    }
+
+    @Test
+    fun testPhase4DistinctVehicleConfigurationsDynamics() {
+        val valkyrieDef = CarDefinition.ALL_CARS.find { it.id == "apex_valkyrie" }!!
+        val spiritDef = CarDefinition.ALL_CARS.find { it.id == "apex_spirit_86" }!!
+        val monzaDef = CarDefinition.ALL_CARS.find { it.id == "apex_monza_v10" }!!
+
+        // 1. Valkyrie: AWD 35% front torque split
+        assertEquals(0.35f, valkyrieDef.driveFrontRatio, 0.01f)
+        // 2. Spirit GTS: Pure RWD 0% front torque split for drifting
+        assertEquals(0.0f, spiritDef.driveFrontRatio, 0.01f)
+        // 3. Monza V10: 15% front torque split, highest aero downforce
+        assertEquals(0.15f, monzaDef.driveFrontRatio, 0.01f)
+        assertTrue("Monza V10 must have highest aerodynamic downforce", monzaDef.downforceCoeff > valkyrieDef.downforceCoeff)
+        assertTrue("Spirit GTS must have lowest mass", spiritDef.massKg < valkyrieDef.massKg)
+    }
+
+    @Test
+    fun testPhase4RoadSurfacesKerbAndWeatherGripScaling() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val car = VehiclePhysics()
+        car.resetAt(Vector3f(0f, 0.35f, 0f), 0f)
+
+        // 1. Track Center: 100% surface grip
+        car.update(0.016f, track.waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = 1.0f)
+        assertFalse("Center lane is not off-road", car.isOffRoad)
+        assertFalse("Center lane is not on kerb", car.isOnKerb)
+        assertEquals(1.0f, car.currentSurfaceGrip, 0.05f)
+
+        // 2. Kerb / Rumble strip zone (lateral distance ~ 6.0m on 7m half-width)
+        car.position.set(Vector3f(6.0f, 0.35f, 0f))
+        for (i in 0 until 10) {
+            car.update(0.016f, track.waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = 1.0f)
+        }
+        assertTrue("Vehicle on track edge must detect kerb", car.isOnKerb)
+        assertTrue("Kerb grip is slightly reduced vs asphalt", car.currentSurfaceGrip < 1.0f)
+
+        // 3. Wet Weather scaling
+        val carWet = VehiclePhysics()
+        carWet.resetAt(Vector3f(0f, 0.35f, 0f), 0f)
+        for (i in 0 until 10) {
+            carWet.update(0.016f, track.waypoints, roadHalfWidth = 7.0f, baseSurfaceGrip = 0.70f) // Heavy rain
+        }
+        assertTrue("Wet weather reduces track adhesion", carWet.currentSurfaceGrip < 0.75f)
+    }
+
+    @Test
+    fun testPhase4StandstillImmobilityAndReverseOperation() {
+        val car = VehiclePhysics()
+        car.resetAt(Vector3f(0f, 0.35f, 0f), 0f)
+        car.brake = 1.0f
+        car.throttle = 0f
+
+        // Stationary holding brake
+        for (i in 0 until 30) {
+            car.update(0.016f)
+        }
+        assertEquals("Forward velocity must remain precisely 0 at standstill", 0f, car.forwardVelocity, 0.001f)
+        assertEquals("Lateral velocity must remain 0 at standstill", 0f, car.lateralVelocity, 0.001f)
+        assertEquals("Yaw rate must remain 0 at standstill", 0f, car.yawRate, 0.001f)
+
+        // Reverse shift after holding firm brake for > 0.75s
+        car.forwardVelocity = 0f
+        car.brake = 1.0f
+        for (i in 0 until 60) { // 60 * 0.016 = 0.96s
+            car.update(0.016f)
+        }
+        assertEquals("Holding firm brake while stopped shifts into Reverse", 0, car.powertrain.currentGear)
+
+        // In reverse gear, continuing to apply pedal drives car backwards
+        for (i in 0 until 20) {
+            car.update(0.016f)
+        }
+        assertTrue("Car in reverse must travel backwards", car.forwardVelocity < 0f)
+    }
+
+    // =============================================================================================
+    // PHASE 5 — ADVANCED AI OPPONENTS, RACING LINES, OVERTAKING & COMPETITIVE RACE INTELLIGENCE
+    // =============================================================================================
+
+    @Test
+    fun testPhase5TrackAwareRacingLinesAndApexClipping() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val waypoints = track.waypoints
+        val count = waypoints.size
+        assertTrue("Grand Prix circuit must have at least 16 waypoints", count >= 16)
+
+        val profile = AIDriverProfile("Viper", floatArrayOf(0.1f, 0.5f, 1f, 1f), 0.88f, AIDifficulty.EXPERT)
+        val ai = OpponentAIController(VehiclePhysics(), profile, waypoints)
+
+        // Find a right-hand corner and a left-hand corner along track waypoints
+        var foundRightCornerIdx = -1
+        var foundLeftCornerIdx = -1
+
+        val step1 = kotlin.math.max(1, count / 16)
+        val step2 = kotlin.math.max(2, count / 8)
+        val step3 = kotlin.math.max(3, count * 3 / 16)
+
+        for (i in 0 until count) {
+            val wp1 = waypoints[ai.safeIndex(i + step1, count)]
+            val wp2 = waypoints[ai.safeIndex(i + step2, count)]
+            val wp3 = waypoints[ai.safeIndex(i + step3, count)]
+            val a1 = kotlin.math.atan2(wp2.x - wp1.x, wp2.z - wp1.z)
+            val a2 = kotlin.math.atan2(wp3.x - wp2.x, wp3.z - wp2.z)
+            var delta = a2 - a1
+            while (delta > kotlin.math.PI) delta -= (2 * kotlin.math.PI).toFloat()
+            while (delta < -kotlin.math.PI) delta += (2 * kotlin.math.PI).toFloat()
+
+            if (delta > 0.20f && foundRightCornerIdx == -1) {
+                foundRightCornerIdx = i
+            } else if (delta < -0.20f && foundLeftCornerIdx == -1) {
+                foundLeftCornerIdx = i
+            }
+            if (foundRightCornerIdx != -1 && foundLeftCornerIdx != -1) break
+        }
+
+        assertTrue("Must locate right-hand corner on track", foundRightCornerIdx != -1)
+        assertTrue("Must locate left-hand corner on track", foundLeftCornerIdx != -1)
+
+        // 1. Right corner entry (distant apex) sweeps wide left (-3.0m)
+        val rightEntryOffset = ai.computeRacingLineOffset(foundRightCornerIdx, ai.safeIndex(foundRightCornerIdx + 12, count), count)
+        assertEquals("Right corner entry sweeps wide left", -3.0f, rightEntryOffset, 0.01f)
+
+        // 2. Right corner apex clips inside right (+3.2m)
+        val rightApexOffset = ai.computeRacingLineOffset(foundRightCornerIdx, ai.safeIndex(foundRightCornerIdx + 5, count), count)
+        assertEquals("Right corner apex clips inside right", 3.2f, rightApexOffset, 0.01f)
+
+        // 3. Left corner entry (distant apex) sweeps wide right (+3.0m)
+        val leftEntryOffset = ai.computeRacingLineOffset(foundLeftCornerIdx, ai.safeIndex(foundLeftCornerIdx + 12, count), count)
+        assertEquals("Left corner entry sweeps wide right", 3.0f, leftEntryOffset, 0.01f)
+
+        // 4. Left corner apex clips inside left (-3.2m)
+        val leftApexOffset = ai.computeRacingLineOffset(foundLeftCornerIdx, ai.safeIndex(foundLeftCornerIdx + 5, count), count)
+        assertEquals("Left corner apex clips inside left", -3.2f, leftApexOffset, 0.01f)
+    }
+
+    @Test
+    fun testPhase5CurvatureAwareSpeedPlanningAndBrakingDistances() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val waypoints = track.waypoints
+        val count = waypoints.size
+
+        val profile = AIDriverProfile("Shadow", floatArrayOf(0.1f, 0.1f, 0.1f, 1f), 0.74f, AIDifficulty.MEDIUM)
+        val ai = OpponentAIController(VehiclePhysics(), profile, waypoints)
+
+        // 1. Dry asphalt speed planning
+        val drySpeed0 = ai.computeTargetSpeed(0, count, surfaceGrip = 1.0f)
+        assertTrue("Dry track speed planning must be positive and bounded", drySpeed0 in 60f..300f)
+
+        // 2. Wet weather speed reduction (e.g. heavy rain surface grip = 0.70f)
+        val wetSpeed0 = ai.computeTargetSpeed(0, count, surfaceGrip = 0.70f)
+        assertTrue("Wet track target speed must be lower than dry track target speed", wetSpeed0 < drySpeed0)
+
+        // 3. Compare speed planning between straightaway and tight turn entry
+        // Find minimum planned target speed across the circuit
+        var minCircuitSpeed = Float.MAX_VALUE
+        var maxCircuitSpeed = 0f
+        for (i in 0 until count step 2) {
+            val spd = ai.computeTargetSpeed(i, count, surfaceGrip = 1.0f)
+            if (spd < minCircuitSpeed) minCircuitSpeed = spd
+            if (spd > maxCircuitSpeed) maxCircuitSpeed = spd
+        }
+
+        assertTrue("Curvature-aware speed planning slows down before sharp bends", minCircuitSpeed < 140f)
+        assertTrue("Curvature-aware speed planning allows high speed on straightaways", maxCircuitSpeed > 200f)
+        assertTrue("Significant speed differential between straights and bends", (maxCircuitSpeed - minCircuitSpeed) > 60f)
+    }
+
+    @Test
+    fun testPhase5SafePassingLaneSelectionAndOvertakeCommitmentHysteresis() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val waypoints = track.waypoints
+
+        val myCar = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 0f)
+            forwardVelocity = 35f // 126 km/h
+            headingAngleRad = 0f
+        }
+        val slowerCar = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 16f) // 16 meters ahead in traffic lane
+            forwardVelocity = 28f // Slower vehicle ahead (7 m/s delta)
+            headingAngleRad = 0f
+        }
+
+        val profile = AIDriverProfile("Viper", floatArrayOf(0.1f, 0.5f, 1f, 1f), 0.88f, AIDifficulty.EXPERT, personality = AIPersonality.AGGRESSIVE)
+        val ai = OpponentAIController(myCar, profile, waypoints)
+
+        // Step AI with slower car ahead
+        ai.updateWithVehicles(dt = 0.05f, playerVehicle = slowerCar, allCompetitors = emptyList())
+
+        assertTrue("Approaching slower traffic triggers PREPARING_OVERTAKE or OVERTAKING",
+            ai.tacticalState == AITacticalState.PREPARING_OVERTAKE || ai.tacticalState == AITacticalState.OVERTAKING)
+        assertTrue("Overtake commit timer must be engaged to prevent weaving", ai.overtakeCommitTimer > 1.0f)
+        assertTrue("Side switch cooldown must be active", ai.sideSwitchCooldown > 1.5f)
+        assertTrue("Selected passing side must not be zero", ai.overtakeSide != 0f)
+
+        val committedSide = ai.overtakeSide
+
+        // Advance 5 consecutive frames; overtake side must remain locked (anti-weaving hysteresis)
+        for (step in 0 until 5) {
+            slowerCar.position.z += slowerCar.forwardVelocity * 0.05f
+            ai.updateWithVehicles(dt = 0.05f, playerVehicle = slowerCar, allCompetitors = emptyList())
+            assertEquals("Overtake side must remain committed without rapid alternation", committedSide, ai.overtakeSide, 0.001f)
+            assertEquals("Tactical state step $step", AITacticalState.OVERTAKING, ai.tacticalState)
+        }
+    }
+
+    @Test
+    fun testPhase5CollisionAvoidanceAndSideBySideSpaceAllocation() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val waypoints = track.waypoints
+
+        // 1. Multi-car side-by-side room ("Leave space" etiquette)
+        val aiCar = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 10f)
+            forwardVelocity = 25f
+            headingAngleRad = 0f
+        }
+        val adjacentCar = VehiclePhysics().apply {
+            position.set(1.6f, 0.35f, 10.2f) // Side-by-side on the right
+            forwardVelocity = 25f
+            headingAngleRad = 0f
+        }
+
+        val defensiveProfile = AIDriverProfile("Ghost", floatArrayOf(1f, 1f, 0f, 1f), 0.55f, AIDifficulty.EASY, personality = AIPersonality.DEFENSIVE)
+        val aiDefensive = OpponentAIController(aiCar, defensiveProfile, waypoints)
+
+        val initialOffset = aiDefensive.lateralOffset
+        aiDefensive.updateWithVehicles(dt = 0.05f, playerVehicle = adjacentCar, allCompetitors = emptyList())
+
+        // Defensive car should laterally yield away from the right-side adjacent car (repelling left)
+        assertTrue("Adjacent car on right causes AI to yield space leftward", aiDefensive.lateralOffset < initialOffset)
+
+        // 2. Immediate hazard emergency collision avoidance
+        val speedingAi = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 0f)
+            forwardVelocity = 35f
+            headingAngleRad = 0f
+        }
+        val stoppedHazard = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 3.5f) // Immediate hazard 3.5m ahead
+            forwardVelocity = 0f // Stopped dead
+            headingAngleRad = 0f
+        }
+
+        val aiHazard = OpponentAIController(speedingAi, defensiveProfile, waypoints)
+        aiHazard.updateWithVehicles(dt = 0.05f, playerVehicle = stoppedHazard, allCompetitors = emptyList())
+
+        assertEquals("Close stopped obstacle triggers AVOIDING_COLLISION", AITacticalState.AVOIDING_COLLISION, aiHazard.tacticalState)
+        assertEquals("Immediate hazard triggers emergency zero throttle", 0f, speedingAi.throttle, 0.001f)
+        assertTrue("Immediate hazard triggers emergency threshold braking", speedingAi.brake >= 0.85f)
+    }
+
+    @Test
+    fun testPhase5ThreeStageRecoveryStateMachineNonLooping() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val waypoints = track.waypoints
+
+        val car = VehiclePhysics().apply {
+            position.set(waypoints[0].x, waypoints[0].y, waypoints[0].z)
+            // Pointing directly backwards against track forward direction
+            headingAngleRad = kotlin.math.PI.toFloat()
+            forwardVelocity = 1.0f
+            speedKmh = 3.6f
+            hasCollidedBarrier = true
+        }
+
+        val profile = AIDriverProfile("Shadow", floatArrayOf(0.1f, 0.1f, 0.1f, 1f), 0.74f, AIDifficulty.MEDIUM)
+        val ai = OpponentAIController(car, profile, waypoints)
+
+        // 1. Initial detection of stuck / wrong-way state
+        val handled = ai.updateRecoveryStateMachine(dt = 0.05f, nearestIdx = 0, count = waypoints.size)
+        assertTrue("Recovery state machine must handle stuck/spun vehicle", handled)
+        assertEquals("Initial recovery phase must be REVERSING", AIRecoveryState.REVERSING, ai.recoveryState)
+        assertEquals("Reversing applies reverse brake/throttle", 0.95f, car.brake, 0.01f)
+        assertEquals("Reversing cuts forward throttle", 0f, car.throttle, 0.001f)
+
+        // 2. Step reversing until transition to REALIGNING (simulate ~1.5s)
+        var reachedRealigning = false
+        for (i in 0 until 35) {
+            ai.updateRecoveryStateMachine(dt = 0.05f, nearestIdx = 0, count = waypoints.size)
+            if (ai.recoveryState == AIRecoveryState.REALIGNING) {
+                reachedRealigning = true
+                break
+            }
+        }
+        assertTrue("Recovery machine must transition to REALIGNING", reachedRealigning)
+        assertEquals("REALIGNING engages forward throttle", 0.80f, car.throttle, 0.01f)
+
+        // 3. Step realigning until RESUMING and back to NORMAL
+        // Orient heading angle towards track direction
+        car.headingAngleRad = 0f
+        var reachedNormal = false
+        for (i in 0 until 30) {
+            ai.updateRecoveryStateMachine(dt = 0.05f, nearestIdx = 0, count = waypoints.size)
+            if (ai.recoveryState == AIRecoveryState.NORMAL) {
+                reachedNormal = true
+                break
+            }
+        }
+        assertTrue("Recovery machine must smoothly return to NORMAL state", reachedNormal)
+    }
+
+    @Test
+    fun testPhase5AIDifficultiesAndPersonalities() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val waypoints = track.waypoints
+
+        val easyProfile = AIDriverProfile("EasyDriver", floatArrayOf(0f, 0f, 0f, 1f), 0.50f, AIDifficulty.EASY)
+        val mediumProfile = AIDriverProfile("MedDriver", floatArrayOf(0f, 0f, 0f, 1f), 0.75f, AIDifficulty.MEDIUM)
+        val expertProfile = AIDriverProfile("ExpertDriver", floatArrayOf(0f, 0f, 0f, 1f), 1.0f, AIDifficulty.EXPERT)
+
+        // Verify difficulty parameters
+        assertTrue("Expert target speed multiplier > Medium > Easy",
+            expertProfile.difficulty.targetSpeedMultiplier > mediumProfile.difficulty.targetSpeedMultiplier &&
+            mediumProfile.difficulty.targetSpeedMultiplier > easyProfile.difficulty.targetSpeedMultiplier)
+
+        assertTrue("Easy has highest mistake rate",
+            easyProfile.difficulty.mistakeChance > mediumProfile.difficulty.mistakeChance &&
+            mediumProfile.difficulty.mistakeChance > expertProfile.difficulty.mistakeChance)
+
+        assertTrue("Easy has widest braking margin for safety",
+            easyProfile.difficulty.brakeMargin > mediumProfile.difficulty.brakeMargin &&
+            mediumProfile.difficulty.brakeMargin > expertProfile.difficulty.brakeMargin)
+
+        val aiEasy = OpponentAIController(VehiclePhysics(), easyProfile, waypoints)
+        val aiExpert = OpponentAIController(VehiclePhysics(), expertProfile, waypoints)
+
+        val easyTargetSpeed = aiEasy.computeTargetSpeed(5, waypoints.size)
+        val expertTargetSpeed = aiExpert.computeTargetSpeed(5, waypoints.size)
+
+        assertTrue("Expert planned speed must exceed Easy planned speed", expertTargetSpeed > easyTargetSpeed)
+
+        // Personality verification
+        assertEquals(AIPersonality.DEFENSIVE, easyProfile.personality)
+        assertEquals(AIPersonality.BALANCED, mediumProfile.personality)
+        assertEquals(AIPersonality.AGGRESSIVE, expertProfile.personality)
+    }
+
+    @Test
+    fun testPhase5PhysicalCollisionCompatibilityNoTeleportation() {
+        val carA = VehiclePhysics().apply {
+            position.set(0f, 0.35f, 0f)
+            forwardVelocity = 20f
+        }
+        val carB = VehiclePhysics().apply {
+            position.set(0.5f, 0.35f, 3.8f) // Partially overlapping bumper
+            forwardVelocity = 10f
+        }
+
+        val initialPosA = carA.position.copy()
+        val initialPosB = carB.position.copy()
+
+        VehicleCollisionSystem.resolveVehicleCollisions(
+            vehicles = listOf(carA, carB),
+            playerVehicle = carA
+        )
+
+        assertFalse("Vehicle A position must not be NaN", carA.position.x.isNaN() || carA.position.z.isNaN())
+        assertFalse("Vehicle B position must not be NaN", carB.position.x.isNaN() || carB.position.z.isNaN())
+        assertTrue("Vehicle A should transfer forward momentum to car B", carB.forwardVelocity > 10f)
+        assertTrue("Vehicle A should decelerate from impact", carA.forwardVelocity < 20f)
+        assertTrue("Positions must update via physical separation without teleporting",
+            carA.position.distanceTo(initialPosA) < 5.0f && carB.position.distanceTo(initialPosB) < 5.0f)
+    }
+
+    @Test
+    fun testPhase5TrackProgressAndStandingsMonotonicity() {
+        val track = TrackMeshBuilder.buildGrandPrixCircuit()
+        val waypoints = track.waypoints
+        val count = waypoints.size
+
+        val profile = AIDriverProfile("Viper", floatArrayOf(0.1f, 0.5f, 1f, 1f), 0.88f, AIDifficulty.EXPERT)
+        val ai = OpponentAIController(VehiclePhysics(), profile, waypoints)
+
+        // Start at waypoint 0
+        ai.currentWaypointIndex = 0
+        ai.vehicle.position.set(waypoints[0].x, waypoints[0].y, waypoints[0].z)
+        val progress0 = ai.getTrackProgress(waypoints)
+
+        // Advance to waypoint 5
+        ai.currentWaypointIndex = 5
+        ai.vehicle.position.set(waypoints[5].x, waypoints[5].y, waypoints[5].z)
+        val progress5 = ai.getTrackProgress(waypoints)
+
+        assertTrue("Track progress must increase monotonically with waypoint advancement", progress5 > progress0)
+
+        // Complete a full lap
+        ai.totalLapsCompleted = 1
+        ai.currentWaypointIndex = 0
+        ai.vehicle.position.set(waypoints[0].x, waypoints[0].y, waypoints[0].z)
+        val progressLap1 = ai.getTrackProgress(waypoints)
+
+        assertTrue("Completing lap 1 must advance progress beyond lap 0", progressLap1 >= (progress0 + count))
+    }
+
+    @Test
+    fun testNeonMetropolisTrackGeneration() {
+        val model = TrackMeshBuilder.buildTrack(TrackId.NEON_METROPOLIS)
+        assertTrue("Neon Metropolis road mesh should have vertices", model.roadMesh.vertexData.isNotEmpty())
+        assertTrue("Neon Metropolis indices should not be empty", model.roadMesh.indices.isNotEmpty())
+        assertTrue("Neon Metropolis waypoints should not be empty", model.waypoints.isNotEmpty())
+        model.release()
+    }
 }
+
 
 
 
