@@ -149,4 +149,24 @@ class GameDataManager(context: Context) {
             prefs.edit().putFloat("best_lap_time_${track.name}", timeSec).apply()
         }
     }
+
+    var playerName: String
+        get() = prefs.getString("player_name", "Apex Racer") ?: "Apex Racer"
+        set(value) = prefs.edit().putString("player_name", value).apply()
+
+    var playerLevel: Int
+        get() = prefs.getInt("player_level", 14)
+        set(value) = prefs.edit().putInt("player_level", value).apply()
+
+    var racesCompleted: Int
+        get() = prefs.getInt("races_completed", 32)
+        set(value) = prefs.edit().putInt("races_completed", value).apply()
+
+    var racesWon: Int
+        get() = prefs.getInt("races_won", 18)
+        set(value) = prefs.edit().putInt("races_won", value).apply()
+
+    var driverXp: Int
+        get() = prefs.getInt("driver_xp", 7420)
+        set(value) = prefs.edit().putInt("driver_xp", value).apply()
 }

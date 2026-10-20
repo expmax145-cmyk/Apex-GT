@@ -31,7 +31,8 @@ enum class GameScreen {
     GARAGE,
     RACE,
     RACE_SUMMARY,
-    SETTINGS
+    SETTINGS,
+    PROFILE
 }
 
 data class RaceTelemetryUiState(
@@ -96,6 +97,28 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _playerCredits = MutableStateFlow(dataManager.credits)
     val playerCredits: StateFlow<Int> = _playerCredits.asStateFlow()
+
+    private val _playerName = MutableStateFlow(dataManager.playerName)
+    val playerName: StateFlow<String> = _playerName.asStateFlow()
+
+    private val _playerLevel = MutableStateFlow(dataManager.playerLevel)
+    val playerLevel: StateFlow<Int> = _playerLevel.asStateFlow()
+
+    private val _racesCompleted = MutableStateFlow(dataManager.racesCompleted)
+    val racesCompleted: StateFlow<Int> = _racesCompleted.asStateFlow()
+
+    private val _racesWon = MutableStateFlow(dataManager.racesWon)
+    val racesWon: StateFlow<Int> = _racesWon.asStateFlow()
+
+    private val _driverXp = MutableStateFlow(dataManager.driverXp)
+    val driverXp: StateFlow<Int> = _driverXp.asStateFlow()
+
+    fun updatePlayerName(newName: String) {
+        if (newName.isNotBlank()) {
+            dataManager.playerName = newName.trim()
+            _playerName.value = dataManager.playerName
+        }
+    }
 
     private val _unlockedCarIds = MutableStateFlow(dataManager.unlockedCars)
     val unlockedCarIds: StateFlow<Set<String>> = _unlockedCarIds.asStateFlow()

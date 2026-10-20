@@ -440,14 +440,15 @@ class RacingRenderer(
         val pitchRad = playerVehicle.pitchAngleRad
         val speedKmh = playerVehicle.speedKmh
 
-        // 1. Dynamic Speed-Dependent Field of View (FOV) with boost kick
+        // 1. Dynamic Speed-Dependent Field of View (FOV) with boost kick & absolute speed handling
         val baseFov = when (currentCameraView) {
             CameraView.HOOD_BUMPER -> 68f
             CameraView.COCKPIT -> 63f
             CameraView.CHASE_FAR -> 64f
             CameraView.CHASE_NEAR -> 60f
         }
-        val speedFovDelta = (speedKmh / 350f).coerceIn(0f, 1f) * 8.5f
+        val absSpeed = kotlin.math.abs(speedKmh)
+        val speedFovDelta = (absSpeed / 350f).coerceIn(0f, 1f) * 8.5f
         val boostFovDelta = if (playerVehicle.boostActive) 5.5f else 0f
         val targetFov = (baseFov + speedFovDelta + boostFovDelta).coerceIn(58f, 82f)
         currentFov += (targetFov - currentFov) * 0.14f
@@ -455,15 +456,17 @@ class RacingRenderer(
         val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
         projectionMatrix.identity().perspective(currentFov, aspect, 0.2f, 1200f)
 
-        // 2. Camera Positioning & Look-ahead Dynamics
+        // 2. Camera Positioning & Look-ahead Dynamics with Reverse & Collision Recovery Support
         val sinYaw = sin(yawRad)
         val cosYaw = cos(yawRad)
 
-        // Speed lag: camera gently pulls back under high acceleration / high speed
-        val speedLag = (speedKmh / 350f).coerceIn(0f, 1f) * 0.75f
+        // When reversing (speedKmh < 0), cushion speed lag to keep camera stable behind reversing car
+        val speedLagFactor = if (speedKmh >= 0f) 1.0f else -0.3f
+        val speedLag = (absSpeed / 350f).coerceIn(0f, 1f) * 0.75f * speedLagFactor
 
-        // Dynamic look-ahead: looks further down track as speed climbs
-        val lookaheadDist = (14f + (speedKmh * 0.085f)).coerceIn(14f, 36f)
+        // Dynamic look-ahead: looks further down track as speed climbs; in reverse, look behind
+        val lookaheadDir = if (speedKmh >= 0f) 1f else -0.5f
+        val lookaheadDist = ((14f + (absSpeed * 0.085f)) * lookaheadDir).coerceIn(-18f, 36f)
 
         // Subtle steer bias pans the camera look-target into the apex of corners
         val steerBias = playerVehicle.currentSteerAngleRad * 2.2f
@@ -488,9 +491,9 @@ class RacingRenderer(
             }
             CameraView.HOOD_BUMPER -> {
                 targetCamPos.set(
-                    carPos.x + sinYaw * 1.65f,
-                    carPos.y + 0.68f + pitchOffset * 0.3f,
-                    carPos.z + cosYaw * 1.65f
+                    carPos.x + sinYaw * (if (speedKmh >= 0f) 1.65f else -1.2f),
+                    max(carPos.y + 0.4f, carPos.y + 0.68f + pitchOffset * 0.3f),
+                    carPos.z + cosYaw * (if (speedKmh >= 0f) 1.65f else -1.2f)
                 )
             }
             CameraView.COCKPIT -> {
@@ -499,10 +502,15 @@ class RacingRenderer(
                 val worldOffsetZ = -driverOffsetX * sinYaw
                 targetCamPos.set(
                     carPos.x - sinYaw * 0.08f + worldOffsetX,
-                    carPos.y + 0.96f + pitchOffset * 0.2f,
+                    max(carPos.y + 0.5f, carPos.y + 0.96f + pitchOffset * 0.2f),
                     carPos.z - cosYaw * 0.08f + worldOffsetZ
                 )
             }
+        }
+
+        // Camera collision floor safety check: prevent camera from dropping below ground/track level
+        if (targetCamPos.y < carPos.y + 0.3f) {
+            targetCamPos.y = carPos.y + 0.3f
         }
 
         when (currentCameraView) {
@@ -510,9 +518,9 @@ class RacingRenderer(
                 val lookSin = sin(yawRad + steerBias * 0.15f)
                 val lookCos = cos(yawRad + steerBias * 0.15f)
                 targetLookAt.set(
-                    carPos.x + lookSin * 28f,
+                    carPos.x + lookSin * (28f * lookaheadDir),
                     carPos.y + 0.62f + sin(pitchRad) * 6f,
-                    carPos.z + lookCos * 28f
+                    carPos.z + lookCos * (28f * lookaheadDir)
                 )
             }
             CameraView.COCKPIT -> {
@@ -522,9 +530,9 @@ class RacingRenderer(
                 val lookSin = sin(yawRad + steerBias * 0.20f)
                 val lookCos = cos(yawRad + steerBias * 0.20f)
                 targetLookAt.set(
-                    carPos.x + lookSin * 30f + worldOffsetX,
+                    carPos.x + lookSin * (30f * lookaheadDir) + worldOffsetX,
                     carPos.y + 0.85f + sin(pitchRad) * 7f,
-                    carPos.z + lookCos * 30f + worldOffsetZ
+                    carPos.z + lookCos * (30f * lookaheadDir) + worldOffsetZ
                 )
             }
             else -> {
@@ -533,7 +541,7 @@ class RacingRenderer(
                 val lookCos = cos(yawRad + steerBias * 0.22f)
                 targetLookAt.set(
                     carPos.x + lookSin * lookaheadDist,
-                    carPos.y + 1.12f + sin(pitchRad) * (lookaheadDist * 0.4f),
+                    carPos.y + 1.12f + sin(pitchRad) * (kotlin.math.abs(lookaheadDist) * 0.4f),
                     carPos.z + lookCos * lookaheadDist
                 )
             }
@@ -556,14 +564,14 @@ class RacingRenderer(
         }
 
         // 3. Screen Shake / Vibration Dynamics
-        if (playerVehicle.isOffRoad && speedKmh > 8f) {
-            val intensity = (speedKmh / 150f).coerceIn(0.04f, 0.12f)
+        if (playerVehicle.isOffRoad && absSpeed > 8f) {
+            val intensity = (absSpeed / 150f).coerceIn(0.04f, 0.12f)
             cameraShakeIntensity = max(cameraShakeIntensity, intensity)
         }
-        if (playerVehicle.hasCollidedBarrier && speedKmh > 10f) {
-            cameraShakeIntensity = max(cameraShakeIntensity, (speedKmh / 150f).coerceIn(0.06f, 0.14f))
+        if (playerVehicle.hasCollidedBarrier && absSpeed > 10f) {
+            cameraShakeIntensity = max(cameraShakeIntensity, (absSpeed / 150f).coerceIn(0.06f, 0.14f))
         }
-        if (speedKmh > 240f || playerVehicle.boostActive) {
+        if (absSpeed > 240f || playerVehicle.boostActive) {
             cameraShakeIntensity = max(cameraShakeIntensity, 0.016f)
         }
 

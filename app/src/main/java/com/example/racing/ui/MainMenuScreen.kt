@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
@@ -123,7 +124,8 @@ fun MainMenuScreen(
                 selectedCar = selectedCar,
                 isCompact = isCompactWidth,
                 onAddFunds = { viewModel.grantDevelopmentFunds() },
-                onOpenSettings = { viewModel.navigateTo(GameScreen.SETTINGS) }
+                onOpenSettings = { viewModel.navigateTo(GameScreen.SETTINGS) },
+                onOpenProfile = { viewModel.navigateTo(GameScreen.PROFILE) }
             )
 
             Spacer(modifier = Modifier.height(if (isShortHeight) 6.dp else 12.dp))
@@ -175,7 +177,8 @@ private fun TopMenuBar(
     selectedCar: CarDefinition,
     isCompact: Boolean,
     onAddFunds: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenProfile: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -289,6 +292,23 @@ private fun TopMenuBar(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 0.5.sp
+                )
+            }
+
+            // Profile Button
+            IconButton(
+                onClick = onOpenProfile,
+                modifier = Modifier
+                    .testTag("profile_button")
+                    .size(44.dp)
+                    .background(Color(0xDD0D131E), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MilitaryTech,
+                    contentDescription = "Player Profile",
+                    tint = Color(0xFFFF3823),
+                    modifier = Modifier.size(20.dp)
                 )
             }
 

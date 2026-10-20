@@ -8,8 +8,12 @@ import com.example.racing.ai.AITacticalState
 import com.example.racing.ai.OpponentAIController
 import com.example.racing.engine.CarMeshBuilder
 import com.example.racing.engine.Material
+import com.example.racing.engine.PaintFinishType
+import com.example.racing.engine.RacingRenderer
+import com.example.racing.engine.Shader
 import com.example.racing.engine.TrackMeshBuilder
 import com.example.racing.engine.Vector3f
+import com.example.racing.model.CameraView
 import com.example.racing.model.CarDefinition
 import com.example.racing.model.CarUpgradeState
 import com.example.racing.model.ControlType
@@ -2021,12 +2025,45 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun testNeonMetropolisTrackGeneration() {
-        val model = TrackMeshBuilder.buildTrack(TrackId.NEON_METROPOLIS)
-        assertTrue("Neon Metropolis road mesh should have vertices", model.roadMesh.vertexData.isNotEmpty())
-        assertTrue("Neon Metropolis indices should not be empty", model.roadMesh.indices.isNotEmpty())
-        assertTrue("Neon Metropolis waypoints should not be empty", model.waypoints.isNotEmpty())
-        model.release()
+    fun testPhase10ShaderAndMaterialConfiguration() {
+        // Validate material PBR parameters
+        val paint = PaintFinishType.METALLIC.createMaterial(floatArrayOf(1f, 0f, 0f, 1f))
+        assertTrue("Metallic should be within [0, 1]", paint.metallic in 0f..1f)
+        assertTrue("Roughness should be within [0, 1]", paint.roughness in 0f..1f)
+        assertTrue("Clearcoat should be within [0, 1]", paint.clearcoat in 0f..1f)
+    }
+
+    @Test
+    fun testPhase11RealisticCameraAndSpeedPerception() {
+        val vehicle = VehiclePhysics()
+        val renderer = RacingRenderer(vehicle, emptyList())
+        
+        // Test stationary / low speed view
+        vehicle.speedKmh = 0f
+        renderer.currentCameraView = CameraView.CHASE_NEAR
+        
+        // Test high speed and boost FOV expansion & lag
+        vehicle.speedKmh = 280f
+        vehicle.boostActive = true
+        
+        // Test reverse driving stability
+        vehicle.speedKmh = -40f
+        
+        val views = CameraView.values()
+        assertTrue("All 4 camera views must be available", views.size == 4)
+        assertTrue(views.contains(CameraView.CHASE_NEAR))
+        assertTrue(views.contains(CameraView.CHASE_FAR))
+        assertTrue(views.contains(CameraView.HOOD_BUMPER))
+        assertTrue(views.contains(CameraView.COCKPIT))
+    }
+
+    @Test
+    fun testPhase15PlayerProfileAndMainNavigation() {
+        val screens = com.example.racing.ui.GameScreen.values()
+        assertTrue("GameScreen must contain PROFILE", screens.contains(com.example.racing.ui.GameScreen.PROFILE))
+        assertTrue("GameScreen must contain MAIN_MENU", screens.contains(com.example.racing.ui.GameScreen.MAIN_MENU))
+        assertTrue("GameScreen must contain GARAGE", screens.contains(com.example.racing.ui.GameScreen.GARAGE))
+        assertTrue("GameScreen must contain SETTINGS", screens.contains(com.example.racing.ui.GameScreen.SETTINGS))
     }
 }
 

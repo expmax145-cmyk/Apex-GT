@@ -22,6 +22,7 @@ import com.example.racing.ui.GameScreen
 import com.example.racing.ui.GameViewModel
 import com.example.racing.ui.GarageScreen
 import com.example.racing.ui.MainMenuScreen
+import com.example.racing.ui.ProfileScreen
 import com.example.racing.ui.RaceSummaryScreen
 import com.example.racing.ui.RacingHud
 import com.example.racing.ui.RacingSurfaceView
@@ -98,6 +99,7 @@ fun ApexRacingApp(
             GameScreen.GARAGE -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.SETTINGS -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.RACE_SUMMARY -> viewModel.navigateTo(GameScreen.MAIN_MENU)
+            GameScreen.PROFILE -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.MAIN_MENU -> { /* Exit handled by OS */ }
         }
     }
@@ -122,6 +124,9 @@ fun ApexRacingApp(
             }
             GameScreen.RACE_SUMMARY -> {
                 RaceSummaryScreen(viewModel = viewModel)
+            }
+            GameScreen.PROFILE -> {
+                ProfileScreen(viewModel = viewModel)
             }
         }
     }
