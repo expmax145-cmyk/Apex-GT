@@ -1,17 +1,16 @@
 package com.example.racing.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Landscape
-import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -19,9 +18,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.racing.model.TrackId
 
 @Composable
@@ -62,8 +64,10 @@ fun TracksScreen(
                 )
             }
 
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(160.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(TrackId.values()) { track ->
@@ -84,54 +88,42 @@ private fun TrackCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val trackImage = when (track) {
+        TrackId.GRAND_PRIX -> R.drawable.ic_track_gp
+        TrackId.ALPINE_PASS -> R.drawable.ic_track_alpine
+        TrackId.NEON_METROPOLIS -> R.drawable.ic_track_neon
+    }
+
     Surface(
-        color = if (isSelected) Color(0x33FF3823) else Color(0xDD0D131E),
-        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) Color(0x330066FF) else Color(0xDD0D131E),
+        shape = RectangleShape,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            if (isSelected) Color(0xFFFF3823) else Color(0x2BFFFFFF)
+            if (isSelected) Color(0xFF0066FF) else Color(0x2BFFFFFF)
         ),
         modifier = Modifier
             .fillMaxWidth()
+            .aspectRatio(0.75f)
             .clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val icon = when (track) {
-                TrackId.GRAND_PRIX -> Icons.Default.Flag
-                TrackId.ALPINE_PASS -> Icons.Default.Landscape
-                TrackId.NEON_METROPOLIS -> Icons.Default.LocationCity
-            }
-            
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(Color(0x22FFFFFF), RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (isSelected) Color(0xFFFF3823) else Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(20.dp))
-
-            Column {
+        Column {
+            Image(
+                painter = painterResource(id = trackImage),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            )
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = track.title,
                     color = Color.White,
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "${track.lengthKm} KM • ${track.difficulty} • ${track.turns} TURNS",
                     color = Color(0xFF7E8B9B),
-                    fontSize = 12.sp
+                    fontSize = 10.sp
                 )
             }
         }

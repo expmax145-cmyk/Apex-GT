@@ -54,7 +54,7 @@ fun RacingSurfaceView(
 
                         if (prevPinchDist > 0f) {
                             val pinchDelta = dist - prevPinchDist
-                            r.showroomZoomDistance = (r.showroomZoomDistance - pinchDelta * 0.009f).coerceIn(3.2f, 8.5f)
+                            r.showroomZoomDistance = (r.showroomZoomDistance - pinchDelta * 0.009f).coerceIn(4.5f, 10.0f)
                         }
                         prevPinchDist = dist
                         lastTouchX = (x0 + x1) * 0.5f

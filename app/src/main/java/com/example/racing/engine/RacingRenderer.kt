@@ -405,7 +405,7 @@ class RacingRenderer(
 
     private fun setupShowroomCamera() {
         val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
-        val fov = if (isMainMenuMode) 43f else 48f
+        val fov = if (isMainMenuMode) 48f else 48f
         projectionMatrix.identity().perspective(fov, aspect, 0.2f, 1200f)
 
         showroomZoomDistance = showroomZoomDistance.coerceIn(3.2f, 8.5f)
@@ -420,8 +420,8 @@ class RacingRenderer(
 
         currentCamPos.set(camX, camY, camZ)
         if (isMainMenuMode) {
-            // Target slightly offset so vehicle is framed cleanly in the spacious right hero area
-            currentCamTarget.set(-0.32f, 0.40f, 0f)
+            // Center the camera on the vehicle for full visibility
+            currentCamTarget.set(0f, 0.40f, 0f)
         } else {
             // Target slightly lower so vehicle sits proud in the upper viewport above the bottom dock
             currentCamTarget.set(0f, 0.28f, 0f)

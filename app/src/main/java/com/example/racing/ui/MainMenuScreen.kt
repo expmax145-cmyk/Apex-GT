@@ -3,6 +3,7 @@ package com.example.racing.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -134,34 +138,34 @@ fun MainMenuScreen(
 
             Spacer(modifier = Modifier.height(if (isShortHeight) 6.dp else 12.dp))
 
-        // Middle Area: Garage (Left), Car Showcase UI (Center), Tracks+Start (Right)
+        // Middle Area: Car Showcase UI (Center), Garage+Tracks+Start (Right)
         Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-            // Garage (Left)
-            Button(
-                onClick = { viewModel.navigateTo(GameScreen.GARAGE) },
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) { Text("GARAGE") }
-
             // Car Showcase (Center)
-            Column(modifier = Modifier.align(Alignment.Center)) {
-                Text(text = "CURRENT CAR", color = Color.White)
-                // Need to restore car switching logic here...
-            }
+            RacingSurfaceView(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize()
+            )
 
-            // Tracks/Start (Right)
-            Column(
-                modifier = Modifier.align(Alignment.BottomEnd),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            // Controls (Right)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 24.dp), // Add padding for better alignment
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Race Modes
-                Button(onClick = { viewModel.startRace(RaceMode.CIRCUIT_RACE) }) { Text("CIRCUIT") }
-                
-                Button(onClick = { viewModel.navigateTo(GameScreen.TRACKS) }) {
-                    Text("TRACKS")
-                }
-                Button(onClick = { viewModel.startRace(RaceMode.CIRCUIT_RACE) }) {
-                    Text("START")
-                }
+                MotorsportButton(
+                    onClick = { viewModel.navigateTo(GameScreen.TRACKS) },
+                    text = "TRACKS"
+                )
+                MotorsportButton(
+                    onClick = { viewModel.navigateTo(GameScreen.GARAGE) },
+                    text = "GARAGE"
+                )
+                MotorsportButton(
+                    onClick = { viewModel.startRace(RaceMode.CIRCUIT_RACE) },
+                    text = "START",
+                    accentColor = Color(0xFFFF3823)
+                )
             }
         }
         }
@@ -194,8 +198,13 @@ private fun ProfileAndEconomyBar(
             modifier = Modifier.clickable(onClick = onOpenProfile)
         ) {
             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Avatar Placeholder
-                Box(modifier = Modifier.size(32.dp).background(Color(0xFFFF3823), RectangleShape))
+                // Avatar
+                Image(
+                    painter = painterResource(id = R.drawable.ic_avatar_14),
+                    contentDescription = "Racer Avatar",
+                    modifier = Modifier.size(32.dp),
+                    contentScale = ContentScale.Crop
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(text = playerName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -358,5 +367,30 @@ fun StatRow(
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Monospace
         )
+    }
+}
+@Composable
+fun MotorsportButton(
+    onClick: () -> Unit,
+    text: String,
+    modifier: Modifier = Modifier,
+    accentColor: Color = Color(0xFF0066FF)
+) {
+    Surface(
+        onClick = onClick,
+        color = Color(0xDD0D131E),
+        shape = RectangleShape,
+        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
+        modifier = modifier
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
+            Text(
+                text = text,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                letterSpacing = 1.sp
+            )
+        }
     }
 }
