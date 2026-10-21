@@ -27,6 +27,7 @@ import com.example.racing.ui.RaceSummaryScreen
 import com.example.racing.ui.RacingHud
 import com.example.racing.ui.RacingSurfaceView
 import com.example.racing.ui.SettingsScreen
+import com.example.racing.ui.TracksScreen
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -100,6 +101,7 @@ fun ApexRacingApp(
             GameScreen.SETTINGS -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.RACE_SUMMARY -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.PROFILE -> viewModel.navigateTo(GameScreen.MAIN_MENU)
+            GameScreen.TRACKS -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.MAIN_MENU -> { /* Exit handled by OS */ }
         }
     }
@@ -127,6 +129,9 @@ fun ApexRacingApp(
             }
             GameScreen.PROFILE -> {
                 ProfileScreen(viewModel = viewModel)
+            }
+            GameScreen.TRACKS -> {
+                TracksScreen(viewModel = viewModel, onBack = { viewModel.navigateTo(GameScreen.MAIN_MENU) })
             }
         }
     }

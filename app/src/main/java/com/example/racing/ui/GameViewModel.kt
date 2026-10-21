@@ -32,7 +32,8 @@ enum class GameScreen {
     RACE,
     RACE_SUMMARY,
     SETTINGS,
-    PROFILE
+    PROFILE,
+    TRACKS
 }
 
 data class RaceTelemetryUiState(
