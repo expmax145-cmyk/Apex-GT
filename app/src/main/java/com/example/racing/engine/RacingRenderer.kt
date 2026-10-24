@@ -18,6 +18,7 @@ class RacingRenderer(
     val aiOpponents: List<OpponentAIController>
 ) : GLSurfaceView.Renderer {
 
+    var isReleased: Boolean = false
     var isShowroomMode: Boolean = false
     var isMainMenuMode: Boolean = false
     var showroomOrbitAngleDeg: Float = 45f
@@ -177,6 +178,8 @@ class RacingRenderer(
     }
 
     override fun onDrawFrame(gl: GL10?) {
+        if (isReleased) return
+        
         // Safe thread synchronization: Handle pending model swaps on GL thread
         pendingCarId?.let { newCarId ->
             playerCarModel = carModels[newCarId] ?: carModels["apex_valkyrie"]
@@ -665,6 +668,7 @@ class RacingRenderer(
     }
 
     fun release() {
+        isReleased = true
         shader?.release()
         carModels.values.forEach { it.release() }
         carModels.clear()
