@@ -761,14 +761,14 @@ private fun TrackSelectorButton(
     isShort: Boolean = false
 ) {
     val trackIcon = when (selectedTrack) {
-        TrackId.GRAND_PRIX -> Icons.Default.Flag
         TrackId.ALPINE_PASS -> Icons.Default.Landscape
         TrackId.NEON_METROPOLIS -> Icons.Default.LocationCity
+        else -> Icons.Default.Flag
     }
     val trackColor = when (selectedTrack) {
-        TrackId.GRAND_PRIX -> Color(0xFFFFB300)
         TrackId.ALPINE_PASS -> Color(0xFF00E5FF)
         TrackId.NEON_METROPOLIS -> Color(0xFFFF4081)
+        else -> Color(0xFFFFB300)
     }
 
     Surface(

@@ -3,7 +3,8 @@ package com.example.racing.model
 enum class RaceMode {
     FREE_DRIVE,
     CIRCUIT_RACE,
-    TIME_ATTACK
+    TIME_ATTACK,
+    CHAMPIONSHIP
 }
 
 enum class CameraView {

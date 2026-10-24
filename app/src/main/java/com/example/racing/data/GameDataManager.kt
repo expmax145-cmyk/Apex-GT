@@ -169,4 +169,135 @@ class GameDataManager(context: Context) {
     var driverXp: Int
         get() = prefs.getInt("driver_xp", 7420)
         set(value) = prefs.edit().putInt("driver_xp", value).apply()
+
+    // =============================================================================================
+    // Phase 17: Championship & Career Mode Progression Persistence
+    // =============================================================================================
+
+    var unlockedCups: Set<String>
+        get() = prefs.getStringSet("unlocked_cups", setOf("BRONZE")) ?: setOf("BRONZE")
+        set(value) = prefs.edit().putStringSet("unlocked_cups", value).apply()
+
+    var completedCups: Set<String>
+        get() = prefs.getStringSet("completed_cups", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("completed_cups", value).apply()
+
+    var trophiesEarned: Set<String>
+        get() = prefs.getStringSet("trophies_earned", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("trophies_earned", value).apply()
+
+    var careerChampionshipPoints: Int
+        get() = prefs.getInt("career_championship_points", 0)
+        set(value) = prefs.edit().putInt("career_championship_points", value).apply()
+
+    var championshipEntries: Int
+        get() = prefs.getInt("championship_entries", 0)
+        set(value) = prefs.edit().putInt("championship_entries", value).apply()
+
+    var championshipWins: Int
+        get() = prefs.getInt("championship_wins", 0)
+        set(value) = prefs.edit().putInt("championship_wins", value).apply()
+
+    fun unlockCup(cupId: String) {
+        val current = unlockedCups.toMutableSet()
+        current.add(cupId.uppercase())
+        unlockedCups = current
+    }
+
+    fun isCupUnlocked(cupId: String): Boolean {
+        if (cupId.equals("BRONZE", ignoreCase = true)) return true
+        return unlockedCups.contains(cupId.uppercase())
+    }
+
+    fun recordCupCompletion(tier: com.example.racing.model.ChampionshipTier, playerWon: Boolean) {
+        val completed = completedCups.toMutableSet()
+        completed.add(tier.id)
+        completedCups = completed
+
+        if (playerWon) {
+            val trophies = trophiesEarned.toMutableSet()
+            trophies.add(tier.id)
+            trophiesEarned = trophies
+            championshipWins += 1
+
+            // Unlock next cup tier
+            when (tier) {
+                com.example.racing.model.ChampionshipTier.BRONZE -> unlockCup("SILVER")
+                com.example.racing.model.ChampionshipTier.SILVER -> unlockCup("GOLD")
+                com.example.racing.model.ChampionshipTier.GOLD -> { /* Pinnacle reached */ }
+            }
+        }
+    }
+
+    fun saveActiveChampionship(state: com.example.racing.model.ActiveChampionshipState) {
+        val serializedStandings = state.standings.joinToString(";") { s ->
+            "${s.driverName}|${s.carName}|${s.carId}|${s.points}|${s.wins}|${s.podiums}|${s.bestFinish}|${s.isPlayer}"
+        }
+
+        prefs.edit()
+            .putString("active_cup_id", state.tier.id)
+            .putInt("active_round_index", state.currentRoundIndex)
+            .putBoolean("active_round_finished", state.isCurrentRoundFinished)
+            .putBoolean("active_cup_completed", state.isCupCompleted)
+            .putBoolean("active_rewards_claimed", state.finalRewardsClaimed)
+            .putString("active_standings_data", serializedStandings)
+            .apply()
+    }
+
+    fun loadActiveChampionship(): com.example.racing.model.ActiveChampionshipState? {
+        val cupId = prefs.getString("active_cup_id", null) ?: return null
+        val tier = com.example.racing.model.ChampionshipTier.fromId(cupId) ?: return null
+        val roundIndex = prefs.getInt("active_round_index", 0)
+        val roundFinished = prefs.getBoolean("active_round_finished", false)
+        val cupCompleted = prefs.getBoolean("active_cup_completed", false)
+        val rewardsClaimed = prefs.getBoolean("active_rewards_claimed", false)
+        val rawStandings = prefs.getString("active_standings_data", null) ?: return null
+
+        val standings = mutableListOf<com.example.racing.model.ChampionshipDriverStanding>()
+        try {
+            val entries = rawStandings.split(";")
+            for (entry in entries) {
+                if (entry.isBlank()) continue
+                val parts = entry.split("|")
+                if (parts.size >= 8) {
+                    standings.add(
+                        com.example.racing.model.ChampionshipDriverStanding(
+                            driverName = parts[0],
+                            carName = parts[1],
+                            carId = parts[2],
+                            points = parts[3].toIntOrNull() ?: 0,
+                            wins = parts[4].toIntOrNull() ?: 0,
+                            podiums = parts[5].toIntOrNull() ?: 0,
+                            bestFinish = parts[6].toIntOrNull() ?: 4,
+                            isPlayer = parts[7].toBooleanStrictOrNull() ?: false
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            return null
+        }
+
+        if (standings.isEmpty()) return null
+
+        return com.example.racing.model.ActiveChampionshipState(
+            tier = tier,
+            currentRoundIndex = roundIndex,
+            standings = standings,
+            isCurrentRoundFinished = roundFinished,
+            isCupCompleted = cupCompleted,
+            finalRewardsClaimed = rewardsClaimed
+        )
+    }
+
+    fun clearActiveChampionship() {
+        prefs.edit()
+            .remove("active_cup_id")
+            .remove("active_round_index")
+            .remove("active_round_finished")
+            .remove("active_cup_completed")
+            .remove("active_rewards_claimed")
+            .remove("active_standings_data")
+            .apply()
+    }
 }

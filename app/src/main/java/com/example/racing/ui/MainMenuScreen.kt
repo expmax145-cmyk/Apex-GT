@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.LocationCity
@@ -96,6 +97,7 @@ fun MainMenuScreen(
     val timeOfDay by viewModel.timeOfDay.collectAsState()
     val weatherCondition by viewModel.weatherCondition.collectAsState()
     val upgrades by viewModel.carUpgrades.collectAsState()
+    val activeChamp by viewModel.activeChampionship.collectAsState()
     val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
 
     BoxWithConstraints(
@@ -147,25 +149,70 @@ fun MainMenuScreen(
             )
 
             // Controls (Right)
-            Row(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(bottom = 24.dp), // Add padding for better alignment
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(bottom = 24.dp),
+                horizontalAlignment = Alignment.End
             ) {
-                MotorsportButton(
-                    onClick = { viewModel.navigateTo(GameScreen.TRACKS) },
-                    text = "TRACKS"
-                )
-                MotorsportButton(
-                    onClick = { viewModel.navigateTo(GameScreen.GARAGE) },
-                    text = "GARAGE"
-                )
-                MotorsportButton(
-                    onClick = { viewModel.startRace(RaceMode.CIRCUIT_RACE) },
-                    text = "START",
-                    accentColor = Color(0xFFFF3823)
-                )
+                // Active Championship Resume Pill
+                activeChamp?.let { champ ->
+                    Surface(
+                        onClick = { viewModel.resumeActiveChampionship() },
+                        color = Color(0xEE0B1526),
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF)),
+                        modifier = Modifier
+                            .testTag("menu_resume_championship_pill")
+                            .padding(bottom = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = Color(0xFFFFD700),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "RESUME ${champ.tier.title.uppercase()} • ROUND ${champ.currentRoundIndex + 1}/${champ.totalRounds}",
+                                color = Color(0xFF00E5FF),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    MotorsportButton(
+                        onClick = { viewModel.navigateTo(GameScreen.CHAMPIONSHIP) },
+                        text = "CHAMPIONSHIP",
+                        accentColor = Color(0xFF00E5FF),
+                        modifier = Modifier.testTag("menu_championship_button")
+                    )
+                    MotorsportButton(
+                        onClick = { viewModel.navigateTo(GameScreen.TRACKS) },
+                        text = "TRACKS",
+                        modifier = Modifier.testTag("menu_tracks_button")
+                    )
+                    MotorsportButton(
+                        onClick = { viewModel.navigateTo(GameScreen.GARAGE) },
+                        text = "GARAGE",
+                        modifier = Modifier.testTag("menu_garage_button")
+                    )
+                    MotorsportButton(
+                        onClick = { viewModel.startRace(RaceMode.CIRCUIT_RACE) },
+                        text = "RACE",
+                        accentColor = Color(0xFFFF3823),
+                        modifier = Modifier.testTag("menu_start_button")
+                    )
+                }
             }
         }
         }

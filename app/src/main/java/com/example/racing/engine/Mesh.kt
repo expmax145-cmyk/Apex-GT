@@ -92,6 +92,7 @@ class Mesh(
         if (!isLoaded) {
             initGL()
         }
+        if (vaoId == 0) return
         GLES30.glBindVertexArray(vaoId)
         GLES30.glDrawElements(
             GLES30.GL_TRIANGLES,

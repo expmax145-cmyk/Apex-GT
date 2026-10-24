@@ -323,7 +323,7 @@ class ParticleSystem(val maxParticles: Int = 480) {
     }
 
     fun draw(vpMatrix: FloatArray, camPos: Vector3f) {
-        if (programId == 0) return
+        if (programId == 0 || vaoId == 0 || vboId == 0) return
 
         vertexBuffer.clear()
         var activeCount = 0

@@ -162,17 +162,8 @@ class VehiclePhysics(
         val speedSteerFactor = (1.0f / (1.0f + (speedMagnitude / 34f))).coerceIn(0.28f, 1.0f)
         var targetSteer = steerInput * maxSteerAngleRad * speedSteerFactor
 
-        // Counter-steer drift assist: allow extra opposite steering authority when sliding
-        val isOversteering = (abs(driftAngleDeg) > 7f && forwardVelocity > 4f)
-        if (isOversteering) {
-            val isCounterSteering = (steerInput * driftAngleDeg > 0.05f)
-            if (isCounterSteering) {
-                targetSteer *= 1.35f
-            }
-        }
-
         // Asymmetric steer rate: faster caster self-centering when returning to neutral
-        val steerRate = if (abs(targetSteer) < abs(currentSteerAngleRad)) 14.5f else 9.2f
+        val steerRate = if (abs(targetSteer) < abs(currentSteerAngleRad)) 22.0f else 15.0f
         currentSteerAngleRad += (targetSteer - currentSteerAngleRad) * (clampedDt * steerRate).coerceAtMost(1.0f)
 
         // Automatic Reverse Shifting:
@@ -348,12 +339,6 @@ class VehiclePhysics(
         val accelLong = (netLongitudinalForce / massKg) + (lateralVelocity * yawRate)
         val accelLat = ((fyFront * cos(currentSteerAngleRad) + fyRear) / massKg) - (forwardVelocity * yawRate)
         var torqueYaw = (distFront * fyFront * cos(currentSteerAngleRad)) - (distRear * fyRear)
-
-        // Counter-steer yaw stabilization (prevents snap spins on counter-steering)
-        if (isOversteering && (steerInput * yawRate < 0f)) {
-            val yawDampingNm = yawRate * (massKg * 4.2f)
-            torqueYaw -= yawDampingNm
-        }
 
         val angularAccelYaw = torqueYaw / momentOfInertiaZ
 

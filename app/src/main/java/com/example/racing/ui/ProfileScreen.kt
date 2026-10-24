@@ -76,6 +76,12 @@ fun ProfileScreen(
     val credits by viewModel.playerCredits.collectAsState()
     val selectedCar by viewModel.selectedCar.collectAsState()
     val unlockedCars by viewModel.unlockedCarIds.collectAsState()
+    val careerPoints by viewModel.careerChampionshipPoints.collectAsState()
+    val championshipEntries by viewModel.championshipEntries.collectAsState()
+    val championshipWins by viewModel.championshipWins.collectAsState()
+    val trophiesEarned by viewModel.trophiesEarned.collectAsState()
+    val completedCups by viewModel.completedCups.collectAsState()
+    val activeChamp by viewModel.activeChampionship.collectAsState()
 
     var isEditingName by remember { mutableStateOf(false) }
     var tempNameInput by remember { mutableStateOf(playerName) }
@@ -413,6 +419,80 @@ fun ProfileScreen(
                     }
                 }
 
+                // Championship Career & Trophies Showcase
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "CHAMPIONSHIP CAREER & TROPHIES",
+                        color = Color(0xFF8B9BB4),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        StatCard(
+                            title = "CUPS ENTERED",
+                            value = "$championshipEntries",
+                            subtitle = "Tournaments Started",
+                            icon = Icons.Default.Speed,
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatCard(
+                            title = "CUPS WON",
+                            value = "$championshipWins",
+                            subtitle = "Championship Titles",
+                            icon = Icons.Default.EmojiEvents,
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatCard(
+                            title = "CAREER POINTS",
+                            value = "$careerPoints",
+                            subtitle = "Cumulative FIA PTS",
+                            icon = Icons.Default.MilitaryTech,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                item {
+                    // Trophies Row
+                    Surface(
+                        color = Color(0xFF0E1524),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF223250))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TrophyBadgeItem(
+                                title = "BRONZE CUP",
+                                isEarned = trophiesEarned.contains("BRONZE"),
+                                color = Color(0xFFCD7F32)
+                            )
+                            TrophyBadgeItem(
+                                title = "SILVER CUP",
+                                isEarned = trophiesEarned.contains("SILVER"),
+                                color = Color(0xFFC0C0C0)
+                            )
+                            TrophyBadgeItem(
+                                title = "GOLD CUP",
+                                isEarned = trophiesEarned.contains("GOLD"),
+                                color = Color(0xFFFFD700)
+                            )
+                        }
+                    }
+                }
+
                 // 3. Garage & Selected Car Overview
                 item {
                     Spacer(modifier = Modifier.height(4.dp))
@@ -532,5 +612,42 @@ private fun StatCard(
                 fontSize = 11.sp
             )
         }
+    }
+}
+
+@Composable
+private fun TrophyBadgeItem(
+    title: String,
+    isEarned: Boolean,
+    color: Color
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .background(if (isEarned) color.copy(alpha = 0.2f) else Color(0x11FFFFFF), CircleShape)
+                .border(1.5.dp, if (isEarned) color else Color(0x33FFFFFF), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.EmojiEvents,
+                contentDescription = title,
+                tint = if (isEarned) color else Color(0xFF556070),
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = title,
+            color = if (isEarned) Color.White else Color(0xFF556070),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = if (isEarned) "EARNED" else "LOCKED",
+            color = if (isEarned) color else Color(0xFF404A58),
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Black
+        )
     }
 }

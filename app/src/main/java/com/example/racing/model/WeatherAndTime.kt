@@ -244,6 +244,7 @@ class EnvironmentController(
             TrackId.GRAND_PRIX -> {
                 // Professional GP circuit: clean high-contrast asphalt and curbs
             }
+            else -> {}
         }
 
         // 3. Weather Adjustments (Cloud Coverage, Diffuse Lighting, Fog Range, Wetness)

@@ -3,6 +3,8 @@ package com.example.racing.engine
 import com.example.racing.model.TrackId
 import com.example.racing.model.TrackLightingConfig
 import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -52,17 +54,58 @@ object TrackMeshBuilder {
     }
 
     fun buildTrack(trackId: TrackId): TrackModel {
+        // Point-to-point routes start at i=0 and end at i=last
         return when (trackId) {
-            TrackId.ALPINE_PASS -> buildAlpinePass()
-            TrackId.NEON_METROPOLIS -> buildNeonMetropolis()
-            TrackId.GRAND_PRIX -> buildGrandPrixCircuit()
+            TrackId.GRAND_PRIX -> buildGrandPrixCircuit(TrackId.GRAND_PRIX, TrackLightingConfig.GRAND_PRIX)
+            TrackId.COASTAL_SPRINT -> buildGrandPrixCircuit(TrackId.COASTAL_SPRINT, TrackLightingConfig.COASTAL_SPRINT)
+            TrackId.ALPINE_PASS -> buildAlpinePass(TrackId.ALPINE_PASS, TrackLightingConfig.ALPINE_PASS)
+            TrackId.DESERT_RUN -> buildGrandPrixCircuit(TrackId.DESERT_RUN, TrackLightingConfig.DESERT_RUN)
+            TrackId.FOREST_DRIVE -> buildAlpinePass(TrackId.FOREST_DRIVE, TrackLightingConfig.FOREST_DRIVE)
+            TrackId.NEON_METROPOLIS -> buildNeonMetropolis(TrackId.NEON_METROPOLIS, TrackLightingConfig.NEON_METROPOLIS)
+            TrackId.COUNTRYSIDE_RUN -> buildGrandPrixCircuit(TrackId.COUNTRYSIDE_RUN, TrackLightingConfig.COUNTRYSIDE_RUN)
+            TrackId.INDUSTRIAL_ROUTE -> buildNeonMetropolis(TrackId.INDUSTRIAL_ROUTE, TrackLightingConfig.INDUSTRIAL_ROUTE)
+            TrackId.CANYON_CHALLENGE -> buildAlpinePass(TrackId.CANYON_CHALLENGE, TrackLightingConfig.CANYON_CHALLENGE)
         }
+    }
+
+    // Helper to generate non-looping spline
+    private fun interpolateCatmullRomLinear(pts: List<TrackSplinePoint>, segmentsPerPoint: Int): List<TrackSplinePoint> {
+        val result = ArrayList<TrackSplinePoint>()
+        val count = pts.size
+        for (i in 0 until count - 1) {
+            val p0 = pts[max(0, i - 1)]
+            val p1 = pts[i]
+            val p2 = pts[i + 1]
+            val p3 = pts[min(count - 1, i + 2)]
+
+            for (step in 0 until segmentsPerPoint) {
+                val t = step.toFloat() / segmentsPerPoint
+                val t2 = t * t
+                val t3 = t2 * t
+                val x = 0.5f * ((2f * p1.x) + (-p0.x + p2.x) * t + (2f * p0.x - 5f * p1.x + 4f * p2.x - p3.x) * t2 + (-p0.x + 3f * p1.x - 3f * p2.x + p3.x) * t3)
+                val y = 0.5f * ((2f * p1.y) + (-p0.y + p2.y) * t + (2f * p0.y - 5f * p1.y + 4f * p2.y - p3.y) * t2 + (-p0.y + 3f * p1.y - 3f * p2.y + p3.y) * t3)
+                val z = 0.5f * ((2f * p1.z) + (-p0.z + p2.z) * t + (2f * p0.z - 5f * p1.z + 4f * p2.z - p3.z) * t2 + (-p0.z + 3f * p1.z - 3f * p2.z + p3.z) * t3)
+                val bank = p1.bankAngleDeg + (p2.bankAngleDeg - p1.bankAngleDeg) * t
+                val w = p1.width + (p2.width - p1.width) * t
+                result.add(TrackSplinePoint(x, y, z, bank, w,
+                    hasLeftKerb = if (t < 0.5f) p1.hasLeftKerb else p2.hasLeftKerb,
+                    hasRightKerb = if (t < 0.5f) p1.hasRightKerb else p2.hasRightKerb,
+                    hasRunoffLeft = if (t < 0.5f) p1.hasRunoffLeft else p2.hasRunoffLeft,
+                    hasRunoffRight = if (t < 0.5f) p1.hasRunoffRight else p2.hasRunoffRight
+                ))
+            }
+        }
+        result.add(pts.last())
+        return result
     }
 
     // =============================================================================================
     // 1. GRAND PRIX CIRCUIT (Professional Coastal Motorsport Venue)
     // =============================================================================================
-    fun buildGrandPrixCircuit(): TrackModel {
+    fun buildGrandPrixCircuit(
+        targetTrackId: TrackId = TrackId.GRAND_PRIX,
+        lightingConfig: TrackLightingConfig = TrackLightingConfig.GRAND_PRIX
+    ): TrackModel {
         val controlPoints = listOf(
             TrackSplinePoint(0f, 0f, -80f, 0f, 14f),
             TrackSplinePoint(0f, 0f, 0f, 0f, 14f),
@@ -95,7 +138,7 @@ object TrackMeshBuilder {
             TrackSplinePoint(0f, 0f, -100f, 0f, 14f)
         )
 
-        val splinePoints = interpolateCatmullRom(controlPoints, 10)
+        val splinePoints = interpolateCatmullRomLinear(controlPoints, 10)
         val waypoints = splinePoints.map { Vector3f(it.x, it.y + 0.35f, it.z) }
         val sectors = listOf(
             waypoints[0],
@@ -108,18 +151,21 @@ object TrackMeshBuilder {
         val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.GRAND_PRIX)
         val env = generateGrandPrixSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
-        val sky = generateSkyDomeMesh(TrackType.GRAND_PRIX, TrackLightingConfig.GRAND_PRIX)
+        val sky = generateSkyDomeMesh(TrackType.GRAND_PRIX, lightingConfig)
         
         // Add detailed braking markers at 150m, 100m, 50m before turns
         val envWithMarkers = addBrakingMarkers(env, splinePoints)
 
-        return TrackModel(TrackId.GRAND_PRIX, road, kerbs, barriers, envWithMarkers, gantry, sky, waypoints, sectors, TrackLightingConfig.GRAND_PRIX)
+        return TrackModel(targetTrackId, road, kerbs, barriers, envWithMarkers, gantry, sky, waypoints, sectors, lightingConfig)
     }
 
     // =============================================================================================
     // 2. ALPINE MOUNTAIN PASS (High-Altitude Mountain Ascent & Switchbacks)
     // =============================================================================================
-    fun buildAlpinePass(): TrackModel {
+    fun buildAlpinePass(
+        targetTrackId: TrackId = TrackId.ALPINE_PASS,
+        lightingConfig: TrackLightingConfig = TrackLightingConfig.ALPINE_PASS
+    ): TrackModel {
         val controlPoints = listOf(
             TrackSplinePoint(0f, 0f, -60f, 0f, 13f),
             TrackSplinePoint(0f, 0f, 20f, 0f, 13f),
@@ -142,7 +188,7 @@ object TrackMeshBuilder {
             TrackSplinePoint(-20f, 2.0f, -60f, 0f, 13f)
         )
 
-        val splinePoints = interpolateCatmullRom(controlPoints, 12)
+        val splinePoints = interpolateCatmullRomLinear(controlPoints, 12)
         val waypoints = splinePoints.map { Vector3f(it.x, it.y + 0.35f, it.z) }
         val sectors = listOf(
             waypoints[0],
@@ -155,15 +201,18 @@ object TrackMeshBuilder {
         val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.ALPINE_PASS)
         val env = generateAlpineSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
-        val sky = generateSkyDomeMesh(TrackType.ALPINE_PASS, TrackLightingConfig.ALPINE_PASS)
+        val sky = generateSkyDomeMesh(TrackType.ALPINE_PASS, lightingConfig)
 
-        return TrackModel(TrackId.ALPINE_PASS, road, kerbs, barriers, env, gantry, sky, waypoints, sectors, TrackLightingConfig.ALPINE_PASS)
+        return TrackModel(targetTrackId, road, kerbs, barriers, env, gantry, sky, waypoints, sectors, lightingConfig)
     }
 
     // =============================================================================================
     // 3. NIGHT NEON METROPOLIS (Night City Boulevard & Urban Street Circuit)
     // =============================================================================================
-    fun buildNeonMetropolis(): TrackModel {
+    fun buildNeonMetropolis(
+        targetTrackId: TrackId = TrackId.NEON_METROPOLIS,
+        lightingConfig: TrackLightingConfig = TrackLightingConfig.NEON_METROPOLIS
+    ): TrackModel {
         val controlPoints = listOf(
             TrackSplinePoint(0f, 0f, -80f, 0f, 15f),
             TrackSplinePoint(0f, 0f, 0f, 0f, 15f),
@@ -186,10 +235,11 @@ object TrackMeshBuilder {
             TrackSplinePoint(260f, 0f, -180f, -8f, 14.5f, hasLeftKerb = true, hasRunoffRight = true),
             TrackSplinePoint(150f, 0f, -190f, -8f, 14.5f, hasLeftKerb = true, hasRunoffRight = true),
             TrackSplinePoint(50f, 0f, -160f, -4f, 15f, hasLeftKerb = true),
-            TrackSplinePoint(10f, 0f, -110f, 0f, 15f)
+            TrackSplinePoint(10f, 0f, -110f, 0f, 15f),
+            TrackSplinePoint(0f, 0f, -95f, 0f, 15f)
         )
 
-        val splinePoints = interpolateCatmullRom(controlPoints, 10)
+        val splinePoints = interpolateCatmullRomLinear(controlPoints, 10)
         val waypoints = splinePoints.map { Vector3f(it.x, it.y + 0.35f, it.z) }
         val sectors = listOf(
             waypoints[0],
@@ -202,9 +252,9 @@ object TrackMeshBuilder {
         val barriers = generateBarrierMesh(splinePoints, trackType = TrackType.NEON_METROPOLIS)
         val env = generateMetropolisSceneryMesh(splinePoints)
         val gantry = generateStartGantryMesh(splinePoints[0])
-        val sky = generateSkyDomeMesh(TrackType.NEON_METROPOLIS, TrackLightingConfig.NEON_METROPOLIS)
+        val sky = generateSkyDomeMesh(TrackType.NEON_METROPOLIS, lightingConfig)
 
-        return TrackModel(TrackId.NEON_METROPOLIS, road, kerbs, barriers, env, gantry, sky, waypoints, sectors, TrackLightingConfig.NEON_METROPOLIS)
+        return TrackModel(targetTrackId, road, kerbs, barriers, env, gantry, sky, waypoints, sectors, lightingConfig)
     }
 
     private enum class TrackType {
@@ -529,8 +579,8 @@ object TrackMeshBuilder {
         }
 
         val cols = 11
-        for (i in 0 until count) {
-            val nextI = (i + 1) % count
+        for (i in 0 until count - 1) {
+            val nextI = i + 1
             val base0 = (i * cols).toShort()
             val base1 = (nextI * cols).toShort()
 
@@ -561,9 +611,9 @@ object TrackMeshBuilder {
         val kerbWidth = 1.45f
         val kerbHeight = 0.09f
 
-        for (i in 0 until count) {
+        for (i in 0 until count - 1) {
             val curr = spline[i]
-            val next = spline[(i + 1) % count]
+            val next = spline[i + 1]
 
             // Color alternating scheme per track
             val color = when (trackType) {
@@ -663,8 +713,8 @@ object TrackMeshBuilder {
         }
 
         val count = spline.size
-        for (i in 0 until count step 2) {
-            val nextI = (i + 2) % count
+        for (i in 0 until count - 2 step 2) {
+            val nextI = i + 2
             val curr = spline[i]
             val next = spline[nextI]
 

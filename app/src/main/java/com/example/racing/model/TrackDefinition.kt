@@ -14,6 +14,13 @@ enum class TrackId(
         difficulty = "Medium",
         turns = 6
     ),
+    COASTAL_SPRINT(
+        title = "Coastal Sprint",
+        subtitle = "Coastal Highway • Sweeping Ocean Views",
+        lengthKm = 2.4f,
+        difficulty = "Medium",
+        turns = 5
+    ),
     ALPINE_PASS(
         title = "Alpine Mountain Pass",
         subtitle = "Mountain Ascent • Steep Elevation & Switchbacks",
@@ -21,12 +28,47 @@ enum class TrackId(
         difficulty = "Hard",
         turns = 10
     ),
+    DESERT_RUN(
+        title = "Desert Run",
+        subtitle = "Arid Flatlands • Long Straights & Broad Curves",
+        lengthKm = 3.0f,
+        difficulty = "Easy",
+        turns = 4
+    ),
+    FOREST_DRIVE(
+        title = "Forest Drive",
+        subtitle = "Wooded Canopy • Flowing Technical Sections",
+        lengthKm = 2.1f,
+        difficulty = "Medium",
+        turns = 7
+    ),
     NEON_METROPOLIS(
         title = "Night Neon Metropolis",
         subtitle = "Night City Circuit • Illuminated Skyline & Wet Asphalt",
         lengthKm = 1.9f,
         difficulty = "Extreme",
         turns = 8
+    ),
+    COUNTRYSIDE_RUN(
+        title = "Countryside Run",
+        subtitle = "Open Fields • Gentle Rolling Terrain",
+        lengthKm = 2.5f,
+        difficulty = "Easy",
+        turns = 6
+    ),
+    INDUSTRIAL_ROUTE(
+        title = "Industrial Route",
+        subtitle = "Industrial Outskirts • Wide Paved Roads",
+        lengthKm = 2.0f,
+        difficulty = "Medium",
+        turns = 5
+    ),
+    CANYON_CHALLENGE(
+        title = "Canyon Challenge",
+        subtitle = "Winding Canyon • Extreme Elevation Changes",
+        lengthKm = 2.8f,
+        difficulty = "Hard",
+        turns = 12
     )
 }
 
@@ -79,5 +121,22 @@ data class TrackLightingConfig(
             skyZenithColor = floatArrayOf(0.02f, 0.03f, 0.07f),
             skyHorizonColor = floatArrayOf(0.09f, 0.08f, 0.18f)
         )
+        val COASTAL_SPRINT = GRAND_PRIX
+        val DESERT_RUN = TrackLightingConfig(
+            sunDirection = floatArrayOf(0.85f, 1.10f, 0.25f),
+            sunColor = floatArrayOf(1.20f, 1.12f, 0.85f),
+            skyAmbient = floatArrayOf(0.45f, 0.42f, 0.35f),
+            groundAmbient = floatArrayOf(0.30f, 0.25f, 0.18f),
+            fogColor = floatArrayOf(0.85f, 0.75f, 0.60f),
+            fogNear = 100f,
+            fogFar = 600f,
+            isWetRoad = false,
+            skyZenithColor = floatArrayOf(0.25f, 0.50f, 0.85f),
+            skyHorizonColor = floatArrayOf(0.80f, 0.70f, 0.55f)
+        )
+        val FOREST_DRIVE = ALPINE_PASS
+        val COUNTRYSIDE_RUN = GRAND_PRIX
+        val INDUSTRIAL_ROUTE = ALPINE_PASS
+        val CANYON_CHALLENGE = DESERT_RUN
     }
 }

@@ -89,9 +89,9 @@ private fun TrackCard(
     onClick: () -> Unit
 ) {
     val trackImage = when (track) {
-        TrackId.GRAND_PRIX -> R.drawable.ic_track_gp
         TrackId.ALPINE_PASS -> R.drawable.ic_track_alpine
         TrackId.NEON_METROPOLIS -> R.drawable.ic_track_neon
+        else -> R.drawable.ic_track_gp
     }
 
     Surface(

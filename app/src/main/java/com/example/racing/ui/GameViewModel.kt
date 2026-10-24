@@ -17,6 +17,9 @@ import com.example.racing.model.RaceMode
 import com.example.racing.model.RaceTiming
 import com.example.racing.model.TrackId
 import com.example.racing.engine.TrackMeshBuilder
+import com.example.racing.model.ActiveChampionshipState
+import com.example.racing.model.ChampionshipDriverStanding
+import com.example.racing.model.ChampionshipTier
 import com.example.racing.physics.EnginePowertrain
 import com.example.racing.physics.TireModel
 import com.example.racing.physics.VehicleCollisionSystem
@@ -33,7 +36,8 @@ enum class GameScreen {
     RACE_SUMMARY,
     SETTINGS,
     PROFILE,
-    TRACKS
+    TRACKS,
+    CHAMPIONSHIP
 }
 
 data class RaceTelemetryUiState(
@@ -144,6 +148,28 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _weatherCondition = MutableStateFlow(dataManager.weatherCondition)
     val weatherCondition: StateFlow<com.example.racing.model.WeatherCondition> = _weatherCondition.asStateFlow()
+
+    // Phase 17: Championship & Career Mode Progression StateFlows
+    private val _activeChampionship = MutableStateFlow<ActiveChampionshipState?>(dataManager.loadActiveChampionship())
+    val activeChampionship: StateFlow<ActiveChampionshipState?> = _activeChampionship.asStateFlow()
+
+    private val _unlockedCups = MutableStateFlow<Set<String>>(dataManager.unlockedCups)
+    val unlockedCups: StateFlow<Set<String>> = _unlockedCups.asStateFlow()
+
+    private val _completedCups = MutableStateFlow<Set<String>>(dataManager.completedCups)
+    val completedCups: StateFlow<Set<String>> = _completedCups.asStateFlow()
+
+    private val _trophiesEarned = MutableStateFlow<Set<String>>(dataManager.trophiesEarned)
+    val trophiesEarned: StateFlow<Set<String>> = _trophiesEarned.asStateFlow()
+
+    private val _championshipEntries = MutableStateFlow<Int>(dataManager.championshipEntries)
+    val championshipEntries: StateFlow<Int> = _championshipEntries.asStateFlow()
+
+    private val _championshipWins = MutableStateFlow<Int>(dataManager.championshipWins)
+    val championshipWins: StateFlow<Int> = _championshipWins.asStateFlow()
+
+    private val _careerChampionshipPoints = MutableStateFlow<Int>(dataManager.careerChampionshipPoints)
+    val careerChampionshipPoints: StateFlow<Int> = _careerChampionshipPoints.asStateFlow()
 
     private val _leaderboard = MutableStateFlow<List<com.example.racing.model.LeaderboardRacer>>(emptyList())
     val leaderboard: StateFlow<List<com.example.racing.model.LeaderboardRacer>> = _leaderboard.asStateFlow()
@@ -348,7 +374,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         raceTiming.currentLap = 1
-        raceTiming.totalLaps = if (mode == RaceMode.CIRCUIT_RACE) 3 else 999
+        raceTiming.totalLaps = if (mode == RaceMode.CHAMPIONSHIP) 1 else if (mode == RaceMode.CIRCUIT_RACE) 3 else 999
         raceTiming.currentLapTimeSec = 0f
         raceTiming.lastLapTimeSec = 0f
         raceTiming.bestLapTimeSec = dataManager.getBestLapTime(_selectedTrack.value)
@@ -527,9 +553,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // Finish Line Crossing Detection
-            val finishPoint = waypoints[0]
+            val finishPoint = if (_activeRaceMode.value == RaceMode.CHAMPIONSHIP) waypoints.last() else waypoints[0]
             val distToFinish = carP.distanceTo(finishPoint)
-            if (passedSector2 && distToFinish < 20f && finishLineCooldown <= 0f) {
+            if (passedSector2 && distToFinish < 25f && finishLineCooldown <= 0f) {
                 passedSector1 = false
                 passedSector2 = false
                 passedSector3 = false
@@ -546,12 +572,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     sectorDeltaPositive = false
                 }
 
-                if (_activeRaceMode.value == RaceMode.CIRCUIT_RACE && raceTiming.currentLap >= raceTiming.totalLaps) {
+                if ((_activeRaceMode.value == RaceMode.CIRCUIT_RACE || _activeRaceMode.value == RaceMode.CHAMPIONSHIP) &&
+                    raceTiming.currentLap >= raceTiming.totalLaps) {
                     raceTiming.raceFinished = true
                     val (finalPos, standings) = computeRaceStandings()
                     raceTiming.finishPosition = finalPos
                     lastRaceResults = standings
-                    awardRaceFinishCredits(finalPos)
+                    handleRaceCompletion(finalPos, standings)
                     _currentScreen.value = GameScreen.RACE_SUMMARY
                 } else {
                     raceTiming.currentLap++
@@ -693,6 +720,210 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
         dataManager.credits += reward
         _playerCredits.value = dataManager.credits
+    }
+
+    var lastChampionshipRoundPoints: Int = 0
+        private set
+    var lastChampionshipStandings: List<ChampionshipDriverStanding> = emptyList()
+        private set
+
+    fun handleRaceCompletion(finalPos: Int, standings: List<com.example.racing.model.LeaderboardRacer>) {
+        if (_activeRaceMode.value == RaceMode.CHAMPIONSHIP) {
+            val champ = _activeChampionship.value
+            if (champ != null && champ.isCurrentRoundFinished) {
+                // Round result already submitted for this active championship round
+                return
+            }
+        }
+
+        // Base race statistics
+        dataManager.racesCompleted += 1
+        if (finalPos == 1) {
+            dataManager.racesWon += 1
+        }
+        _racesCompleted.value = dataManager.racesCompleted
+        _racesWon.value = dataManager.racesWon
+
+        // Per-round credits & XP (idempotently awarded once per race finish)
+        awardRaceFinishCredits(finalPos)
+        val roundXp = when (finalPos) {
+            1 -> 500
+            2 -> 350
+            3 -> 250
+            else -> 150
+        }
+        dataManager.driverXp += roundXp
+        _driverXp.value = dataManager.driverXp
+
+        if (_activeRaceMode.value == RaceMode.CHAMPIONSHIP) {
+            val champ = _activeChampionship.value
+            if (champ != null && !champ.isCurrentRoundFinished) {
+                // Award FIA tournament points to all racers
+                for (racer in standings) {
+                    val pts = ChampionshipTier.getPointsForPosition(racer.position)
+                    val driver = champ.standings.find { it.driverName == racer.name || (racer.isPlayer && it.isPlayer) }
+                    if (driver != null) {
+                        driver.points += pts
+                        if (racer.position == 1) driver.wins += 1
+                        if (racer.position <= 3) driver.podiums += 1
+                        driver.bestFinish = kotlin.math.min(driver.bestFinish, racer.position)
+                    }
+                }
+
+                val playerPts = ChampionshipTier.getPointsForPosition(finalPos)
+                lastChampionshipRoundPoints = playerPts
+                dataManager.careerChampionshipPoints += playerPts
+                _careerChampionshipPoints.value = dataManager.careerChampionshipPoints
+
+                champ.isCurrentRoundFinished = true
+
+                // Check if final round of the cup
+                if (champ.isLastRound) {
+                    champ.isCupCompleted = true
+                    val sorted = champ.getSortedStandings()
+                    val playerWonCup = sorted.firstOrNull()?.isPlayer == true
+
+                    dataManager.recordCupCompletion(champ.tier, playerWonCup)
+                    _completedCups.value = dataManager.completedCups
+                    _unlockedCups.value = dataManager.unlockedCups
+                    _trophiesEarned.value = dataManager.trophiesEarned
+                    _championshipWins.value = dataManager.championshipWins
+
+                    if (playerWonCup && !champ.finalRewardsClaimed) {
+                        champ.finalRewardsClaimed = true
+                        dataManager.credits += champ.tier.creditReward
+                        dataManager.driverXp += champ.tier.xpReward
+                        _playerCredits.value = dataManager.credits
+                        _driverXp.value = dataManager.driverXp
+                    }
+                }
+
+                lastChampionshipStandings = champ.getSortedStandings()
+                dataManager.saveActiveChampionship(champ)
+            }
+        }
+    }
+
+    // =============================================================================================
+    // Phase 17: Championship Navigation & Progression Controllers
+    // =============================================================================================
+
+    fun checkCupUnlockStatus(tier: ChampionshipTier): Pair<Boolean, String> {
+        if (tier == ChampionshipTier.BRONZE) {
+            return Pair(true, "Entry Tier Open")
+        }
+        val requiredCupId = tier.requiredCup
+        val isPrevCupDone = requiredCupId == null || dataManager.completedCups.contains(requiredCupId)
+        val hasLevel = dataManager.playerLevel >= tier.requiredLevel
+
+        return if (isPrevCupDone && hasLevel) {
+            Pair(true, "Cup Unlocked")
+        } else if (!isPrevCupDone && !hasLevel) {
+            Pair(false, "Requires ${tier.requiredCup} Cup & Level ${tier.requiredLevel}")
+        } else if (!isPrevCupDone) {
+            Pair(false, "Requires ${tier.requiredCup} Cup completion")
+        } else {
+            Pair(false, "Requires Driver Level ${tier.requiredLevel}")
+        }
+    }
+
+    fun checkVehicleEligibility(tier: ChampionshipTier, car: CarDefinition = _selectedCar.value): Pair<Boolean, String> {
+        val eligible = tier.eligibleCarIds.contains(car.id)
+        return if (eligible) {
+            Pair(true, "Vehicle Approved")
+        } else {
+            val allowedNames = tier.eligibleCarIds.mapNotNull { id -> CarDefinition.ALL_CARS.find { it.id == id }?.name }
+            Pair(false, "Requires ${allowedNames.joinToString(" or ")}")
+        }
+    }
+
+    fun startChampionship(tier: ChampionshipTier): Boolean {
+        val (unlocked, _) = checkCupUnlockStatus(tier)
+        if (!unlocked) return false
+
+        val (vehicleOk, _) = checkVehicleEligibility(tier, _selectedCar.value)
+        if (!vehicleOk) return false
+
+        if (!dataManager.canAfford(tier.entryFee)) return false
+        dataManager.deductCredits(tier.entryFee)
+        _playerCredits.value = dataManager.credits
+
+        // Setup 4 competitors in standings
+        val player = ChampionshipDriverStanding(
+            driverName = dataManager.playerName,
+            carName = _selectedCar.value.name,
+            carId = _selectedCar.value.id,
+            isPlayer = true
+        )
+        val viper = ChampionshipDriverStanding(
+            driverName = "Viper",
+            carName = "Apex Spirit GTS",
+            carId = "apex_spirit_86"
+        )
+        val shadow = ChampionshipDriverStanding(
+            driverName = "Shadow",
+            carName = "Apex Monza V10",
+            carId = "apex_monza_v10"
+        )
+        val ghost = ChampionshipDriverStanding(
+            driverName = "Ghost",
+            carName = "Apex RS-1 Valkyrie",
+            carId = "apex_valkyrie"
+        )
+
+        val champState = ActiveChampionshipState(
+            tier = tier,
+            currentRoundIndex = 0,
+            standings = mutableListOf(player, viper, shadow, ghost),
+            isCurrentRoundFinished = false,
+            isCupCompleted = false,
+            finalRewardsClaimed = false
+        )
+
+        dataManager.championshipEntries += 1
+        _championshipEntries.value = dataManager.championshipEntries
+
+        _activeChampionship.value = champState
+        dataManager.saveActiveChampionship(champState)
+
+        // Launch Round 1
+        selectTrack(champState.currentTrack)
+        startRace(RaceMode.CHAMPIONSHIP)
+        return true
+    }
+
+    fun resumeActiveChampionship(): Boolean {
+        val champ = _activeChampionship.value ?: dataManager.loadActiveChampionship() ?: return false
+        _activeChampionship.value = champ
+
+        if (!champ.isCurrentRoundFinished) {
+            selectTrack(champ.currentTrack)
+            startRace(RaceMode.CHAMPIONSHIP)
+            return true
+        } else if (!champ.isLastRound) {
+            return advanceToNextChampionshipRound()
+        }
+        return false
+    }
+
+    fun advanceToNextChampionshipRound(): Boolean {
+        val champ = _activeChampionship.value ?: dataManager.loadActiveChampionship() ?: return false
+        if (champ.currentRoundIndex < champ.totalRounds - 1) {
+            champ.currentRoundIndex += 1
+            champ.isCurrentRoundFinished = false
+            dataManager.saveActiveChampionship(champ)
+            _activeChampionship.value = champ
+
+            selectTrack(champ.currentTrack)
+            startRace(RaceMode.CHAMPIONSHIP)
+            return true
+        }
+        return false
+    }
+
+    fun abandonActiveChampionship() {
+        _activeChampionship.value = null
+        dataManager.clearActiveChampionship()
     }
 
     private fun updateTelemetryState() {

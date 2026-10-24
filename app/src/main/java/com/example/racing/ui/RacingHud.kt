@@ -320,7 +320,7 @@ fun RacingHud(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                if (raceMode == RaceMode.CIRCUIT_RACE) {
+                if (raceMode == RaceMode.CIRCUIT_RACE || raceMode == RaceMode.CHAMPIONSHIP) {
                     // Position Badge
                     Surface(
                         color = Color(0xCC0B101D),
@@ -355,24 +355,28 @@ fun RacingHud(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // Lap Badge
+                    // Lap or Stage Badge
+                    val activeChampState by viewModel.activeChampionship.collectAsState()
                     Surface(
                         color = Color(0xCC0B101D),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0x44FFFFFF))
+                        border = BorderStroke(1.dp, if (raceMode == RaceMode.CHAMPIONSHIP) Color(0x4400E5FF) else Color(0x44FFFFFF))
                     ) {
                         Column(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "LAP",
-                                color = Color(0xFF90A4AE),
+                                text = if (raceMode == RaceMode.CHAMPIONSHIP) "STAGE" else "LAP",
+                                color = if (raceMode == RaceMode.CHAMPIONSHIP) Color(0xFF00E5FF) else Color(0xFF90A4AE),
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${telemetry.currentLap}/${telemetry.totalLaps}",
+                                text = if (raceMode == RaceMode.CHAMPIONSHIP)
+                                    "${(activeChampState?.currentRoundIndex ?: 0) + 1}/${activeChampState?.totalRounds ?: 1}"
+                                else
+                                    "${telemetry.currentLap}/${telemetry.totalLaps}",
                                 color = Color.White,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Black
