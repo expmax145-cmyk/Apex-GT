@@ -4,6 +4,7 @@ import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import com.example.racing.ai.OpponentAIController
 import com.example.racing.model.CameraView
+import com.example.racing.replay.ReplaySnapshot
 import com.example.racing.model.TrackId
 import com.example.racing.physics.VehiclePhysics
 import javax.microedition.khronos.egl.EGLConfig
@@ -20,11 +21,17 @@ class RacingRenderer(
 
     var isReleased: Boolean = false
     var isShowroomMode: Boolean = false
+    var isReplayMode: Boolean = false
+    var currentReplaySnapshot: ReplaySnapshot? = null
     var isMainMenuMode: Boolean = false
     var showroomOrbitAngleDeg: Float = 45f
     var showroomElevationDeg: Float = 16f
     var showroomZoomDistance: Float = 5.4f
     var autoRotateShowroom: Boolean = false
+
+    var replayFreeOrbitAngleDeg: Float = 0f
+    var replayFreeElevationDeg: Float = 20f
+    var replayFreeDistance: Float = 8f
 
     fun resetShowroomCamera() {
         showroomOrbitAngleDeg = 45f
@@ -180,7 +187,7 @@ class RacingRenderer(
     override fun onDrawFrame(gl: GL10?) {
         if (isReleased) return
         
-        // Safe thread synchronization: Handle pending model swaps on GL thread
+        // Handle pending model swaps on GL thread
         pendingCarId?.let { newCarId ->
             playerCarModel = carModels[newCarId] ?: carModels["apex_valkyrie"]
             pendingCarId = null
@@ -189,6 +196,32 @@ class RacingRenderer(
             trackModel?.release()
             trackModel = TrackMeshBuilder.buildTrack(newTrackId)
             pendingTrackId = null
+        }
+
+        // Apply Replay Snapshot if active
+        if (isReplayMode) {
+            currentReplaySnapshot?.let { snapshot ->
+                // Apply player state
+                playerVehicle.position.set(snapshot.playerPosition)
+                playerVehicle.headingAngleRad = snapshot.playerHeadingRad
+                playerVehicle.currentSteerAngleRad = snapshot.playerSteerAngleRad
+                playerVehicle.powertrain.currentRpm = snapshot.playerRpm
+                playerVehicle.powertrain.currentGear = snapshot.playerGear
+                playerVehicle.throttle = snapshot.playerThrottle
+                playerVehicle.brake = snapshot.playerBrake
+                
+                // Apply AI states
+                for (aiSnapshot in snapshot.aiStates) {
+                    val aiController = aiOpponents.find { it.profile.name == aiSnapshot.id }
+                    if (aiController != null) {
+                        aiController.vehicle.position.set(aiSnapshot.position)
+                        aiController.vehicle.headingAngleRad = aiSnapshot.headingRad
+                        aiController.vehicle.currentSteerAngleRad = aiSnapshot.steerAngleRad
+                        aiController.vehicle.powertrain.currentRpm = aiSnapshot.rpm
+                        aiController.vehicle.powertrain.currentGear = aiSnapshot.gear
+                    }
+                }
+            }
         }
 
         val activeShader = shader ?: return
@@ -449,32 +482,30 @@ class RacingRenderer(
             CameraView.COCKPIT -> 63f
             CameraView.CHASE_FAR -> 64f
             CameraView.CHASE_NEAR -> 60f
+            CameraView.FRONT_TRACKING -> 55f
+            CameraView.REAR_TRACKING -> 55f
+            CameraView.OVERHEAD -> 50f
+            CameraView.CINEMATIC_TRACKSIDE -> 45f
+            CameraView.FREE_ORBIT -> 50f
         }
         val absSpeed = kotlin.math.abs(speedKmh)
         val speedFovDelta = (absSpeed / 350f).coerceIn(0f, 1f) * 8.5f
         val boostFovDelta = if (playerVehicle.boostActive) 5.5f else 0f
-        val targetFov = (baseFov + speedFovDelta + boostFovDelta).coerceIn(58f, 82f)
+        val targetFov = (baseFov + speedFovDelta + boostFovDelta).coerceIn(40f, 82f)
         currentFov += (targetFov - currentFov) * 0.14f
 
         val aspect = viewportWidth.toFloat() / viewportHeight.toFloat().coerceAtLeast(1f)
         projectionMatrix.identity().perspective(currentFov, aspect, 0.2f, 1200f)
 
-        // 2. Camera Positioning & Look-ahead Dynamics with Reverse & Collision Recovery Support
+        // 2. Camera Positioning & Look-ahead Dynamics
         val sinYaw = sin(yawRad)
         val cosYaw = cos(yawRad)
 
-        // When reversing (speedKmh < 0), cushion speed lag to keep camera stable behind reversing car
         val speedLagFactor = if (speedKmh >= 0f) 1.0f else -0.3f
         val speedLag = (absSpeed / 350f).coerceIn(0f, 1f) * 0.75f * speedLagFactor
-
-        // Dynamic look-ahead: looks further down track as speed climbs; in reverse, look behind
         val lookaheadDir = if (speedKmh >= 0f) 1f else -0.5f
         val lookaheadDist = ((14f + (absSpeed * 0.085f)) * lookaheadDir).coerceIn(-18f, 36f)
-
-        // Subtle steer bias pans the camera look-target into the apex of corners
         val steerBias = playerVehicle.currentSteerAngleRad * 2.2f
-
-        // Pitch compensation for hill crests, slopes, elevation changes
         val pitchOffset = sin(pitchRad) * (if (currentCameraView == CameraView.CHASE_FAR) 2.8f else 1.8f)
 
         when (currentCameraView) {
@@ -484,6 +515,11 @@ class RacingRenderer(
                     max(carPos.y + 0.35f, carPos.y + 1.85f + speedLag * 0.18f + pitchOffset * 0.6f),
                     carPos.z - cosYaw * (5.2f + speedLag)
                 )
+                targetLookAt.set(
+                    carPos.x + sin(yawRad + steerBias * 0.22f) * lookaheadDist,
+                    carPos.y + 1.12f + sin(pitchRad) * (kotlin.math.abs(lookaheadDist) * 0.4f),
+                    carPos.z + cos(yawRad + steerBias * 0.22f) * lookaheadDist
+                )
             }
             CameraView.CHASE_FAR -> {
                 targetCamPos.set(
@@ -491,12 +527,22 @@ class RacingRenderer(
                     max(carPos.y + 0.55f, carPos.y + 2.85f + speedLag * 0.25f + pitchOffset * 0.8f),
                     carPos.z - cosYaw * (7.6f + speedLag * 1.1f)
                 )
+                targetLookAt.set(
+                    carPos.x + sin(yawRad + steerBias * 0.22f) * lookaheadDist,
+                    carPos.y + 1.12f + sin(pitchRad) * (kotlin.math.abs(lookaheadDist) * 0.4f),
+                    carPos.z + cos(yawRad + steerBias * 0.22f) * lookaheadDist
+                )
             }
             CameraView.HOOD_BUMPER -> {
                 targetCamPos.set(
                     carPos.x + sinYaw * (if (speedKmh >= 0f) 1.65f else -1.2f),
                     max(carPos.y + 0.4f, carPos.y + 0.68f + pitchOffset * 0.3f),
                     carPos.z + cosYaw * (if (speedKmh >= 0f) 1.65f else -1.2f)
+                )
+                targetLookAt.set(
+                    carPos.x + sin(yawRad + steerBias * 0.15f) * (28f * lookaheadDir),
+                    carPos.y + 0.62f + sin(pitchRad) * 6f,
+                    carPos.z + cos(yawRad + steerBias * 0.15f) * (28f * lookaheadDir)
                 )
             }
             CameraView.COCKPIT -> {
@@ -508,6 +554,65 @@ class RacingRenderer(
                     max(carPos.y + 0.5f, carPos.y + 0.96f + pitchOffset * 0.2f),
                     carPos.z - cosYaw * 0.08f + worldOffsetZ
                 )
+                targetLookAt.set(
+                    carPos.x + sin(yawRad + steerBias * 0.20f) * (30f * lookaheadDir) + worldOffsetX,
+                    carPos.y + 0.85f + sin(pitchRad) * 7f,
+                    carPos.z + cos(yawRad + steerBias * 0.20f) * (30f * lookaheadDir) + worldOffsetZ
+                )
+            }
+            CameraView.FRONT_TRACKING -> {
+                targetCamPos.set(
+                    carPos.x + sinYaw * 8.5f,
+                    carPos.y + 1.4f,
+                    carPos.z + cosYaw * 8.5f
+                )
+                targetLookAt.set(carPos.x, carPos.y + 0.4f, carPos.z)
+            }
+            CameraView.REAR_TRACKING -> {
+                targetCamPos.set(
+                    carPos.x - sinYaw * 10f,
+                    carPos.y + 1.2f,
+                    carPos.z - cosYaw * 10f
+                )
+                targetLookAt.set(carPos.x, carPos.y + 0.6f, carPos.z)
+            }
+            CameraView.OVERHEAD -> {
+                targetCamPos.set(carPos.x, carPos.y + 22f, carPos.z)
+                targetLookAt.set(carPos.x + sinYaw * 2f, carPos.y, carPos.z + cosYaw * 2f)
+            }
+            CameraView.FREE_ORBIT -> {
+                val radOrbit = (replayFreeOrbitAngleDeg * (PI / 180.0)).toFloat()
+                val radElev = (replayFreeElevationDeg * (PI / 180.0)).toFloat()
+                val camX = carPos.x + replayFreeDistance * cos(radElev) * sin(radOrbit)
+                val camY = carPos.y + replayFreeDistance * sin(radElev) + 0.5f
+                val camZ = carPos.z + replayFreeDistance * cos(radElev) * cos(radOrbit)
+                targetCamPos.set(camX, camY, camZ)
+                targetLookAt.set(carPos.x, carPos.y + 0.5f, carPos.z)
+            }
+            CameraView.CINEMATIC_TRACKSIDE -> {
+                // Broadcast logic: pick a fixed point near the track and track the car
+                val track = trackModel
+                if (track != null && track.waypoints.isNotEmpty()) {
+                    val waypoints = track.waypoints
+                    // Find a waypoint ~40m ahead of car to place camera
+                    var bestCamIdx = 0
+                    var minDist = Float.MAX_VALUE
+                    for (i in waypoints.indices) {
+                        val d = waypoints[i].distanceTo(carPos)
+                        if (d > 35f && d < 65f && d < minDist) {
+                            minDist = d
+                            bestCamIdx = i
+                        }
+                    }
+                    val camBase = waypoints[bestCamIdx]
+                    // Offset camera to side of track
+                    targetCamPos.set(camBase.x + 8f, camBase.y + 3.5f, camBase.z + 8f)
+                    targetLookAt.set(carPos.x, carPos.y + 0.5f, carPos.z)
+                } else {
+                    // Fallback to chase near if track missing
+                    targetCamPos.set(carPos.x - sinYaw * 5.2f, carPos.y + 1.85f, carPos.z - cosYaw * 5.2f)
+                    targetLookAt.set(carPos.x, carPos.y + 1f, carPos.z)
+                }
             }
         }
 
@@ -555,6 +660,11 @@ class RacingRenderer(
             CameraView.COCKPIT -> 0.72f
             CameraView.CHASE_NEAR -> 0.24f
             CameraView.CHASE_FAR -> 0.18f
+            CameraView.FRONT_TRACKING -> 0.22f
+            CameraView.REAR_TRACKING -> 0.22f
+            CameraView.OVERHEAD -> 0.15f
+            CameraView.FREE_ORBIT -> 0.35f
+            CameraView.CINEMATIC_TRACKSIDE -> 0.20f
         }
 
         // Prevent wild camera jumps across the map when resetting or teleporting

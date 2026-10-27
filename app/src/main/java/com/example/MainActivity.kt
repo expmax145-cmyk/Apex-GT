@@ -104,6 +104,7 @@ fun ApexRacingApp(
             GameScreen.PROFILE -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.TRACKS -> viewModel.navigateTo(GameScreen.MAIN_MENU)
             GameScreen.CHAMPIONSHIP -> viewModel.navigateTo(GameScreen.MAIN_MENU)
+            GameScreen.REPLAY -> viewModel.closeReplay()
             GameScreen.MAIN_MENU -> { /* Exit handled by OS */ }
         }
     }
@@ -137,6 +138,9 @@ fun ApexRacingApp(
             }
             GameScreen.CHAMPIONSHIP -> {
                 ChampionshipScreen(viewModel = viewModel, onBack = { viewModel.navigateTo(GameScreen.MAIN_MENU) })
+            }
+            GameScreen.REPLAY -> {
+                com.example.racing.ui.ReplayHud(viewModel = viewModel)
             }
         }
     }

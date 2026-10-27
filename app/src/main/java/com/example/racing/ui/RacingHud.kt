@@ -510,6 +510,11 @@ fun RacingHud(
                             CameraView.CHASE_FAR -> "FAR"
                             CameraView.HOOD_BUMPER -> "HOOD"
                             CameraView.COCKPIT -> "COCKPIT"
+                            CameraView.FRONT_TRACKING -> "FRONT"
+                            CameraView.REAR_TRACKING -> "REAR"
+                            CameraView.OVERHEAD -> "OVERHEAD"
+                            CameraView.FREE_ORBIT -> "FREE"
+                            CameraView.CINEMATIC_TRACKSIDE -> "TV"
                         }
                         Text(
                             text = camLabel,
@@ -932,6 +937,11 @@ fun PauseMenuOverlay(
                                 CameraView.CHASE_FAR -> "FAR"
                                 CameraView.HOOD_BUMPER -> "HOOD"
                                 CameraView.COCKPIT -> "COCKPIT"
+                                CameraView.FRONT_TRACKING -> "FRONT"
+                                CameraView.REAR_TRACKING -> "REAR"
+                                CameraView.OVERHEAD -> "SKY"
+                                CameraView.FREE_ORBIT -> "FREE"
+                                CameraView.CINEMATIC_TRACKSIDE -> "TV"
                             }
                             Surface(
                                 onClick = { viewModel.setCameraView(cam) },

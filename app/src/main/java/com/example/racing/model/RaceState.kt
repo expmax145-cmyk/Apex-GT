@@ -11,7 +11,12 @@ enum class CameraView {
     CHASE_NEAR,
     CHASE_FAR,
     HOOD_BUMPER,
-    COCKPIT
+    COCKPIT,
+    CINEMATIC_TRACKSIDE,
+    FRONT_TRACKING,
+    REAR_TRACKING,
+    OVERHEAD,
+    FREE_ORBIT
 }
 
 enum class ControlType {

@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
@@ -249,7 +250,21 @@ fun RaceSummaryScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                // Replay Button (Phase 18)
+                Button(
+                    onClick = { viewModel.openReplay() },
+                    modifier = Modifier
+                        .testTag("summary_watch_replay_button")
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(bottom = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF).copy(alpha = 0.9f)),
+                    shape = RectangleShape
+                ) {
+                    Icon(imageVector = Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("WATCH CINEMATIC REPLAY", fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp)
+                }
 
                 // Action Buttons
                 if (isChampionship && champState != null) {

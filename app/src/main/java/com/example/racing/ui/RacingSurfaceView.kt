@@ -41,9 +41,9 @@ fun RacingSurfaceView(
 
             override fun onTouchEvent(event: MotionEvent): Boolean {
                 val screen = viewModel.currentScreen.value
+                val r = viewModel.renderer ?: return super.onTouchEvent(event)
+                
                 if (screen == GameScreen.GARAGE || screen == GameScreen.MAIN_MENU) {
-                    val r = viewModel.renderer ?: return super.onTouchEvent(event)
-                    
                     if (event.pointerCount >= 2) {
                         // Pinch to Zoom
                         val x0 = event.getX(0)
@@ -93,6 +93,40 @@ fun RacingSurfaceView(
                         }
                     }
                     return true
+                } else if (screen == GameScreen.REPLAY && viewModel.cameraView.value == com.example.racing.model.CameraView.FREE_ORBIT) {
+                    // Free Orbit Camera Touch Controls
+                    if (event.pointerCount >= 2) {
+                        val x0 = event.getX(0)
+                        val y0 = event.getY(0)
+                        val x1 = event.getX(1)
+                        val y1 = event.getY(1)
+                        val dist = kotlin.math.hypot((x1 - x0).toDouble(), (y1 - y0).toDouble()).toFloat()
+
+                        if (prevPinchDist > 0f) {
+                            val pinchDelta = dist - prevPinchDist
+                            r.replayFreeDistance = (r.replayFreeDistance - pinchDelta * 0.015f).coerceIn(3.0f, 25.0f)
+                        }
+                        prevPinchDist = dist
+                        return true
+                    } else {
+                        prevPinchDist = -1f
+                    }
+
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            lastTouchX = event.x
+                            lastTouchY = event.y
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = event.x - lastTouchX
+                            val dy = event.y - lastTouchY
+                            r.replayFreeOrbitAngleDeg += dx * 0.45f
+                            r.replayFreeElevationDeg = (r.replayFreeElevationDeg - dy * 0.35f).coerceIn(2f, 85f)
+                            lastTouchX = event.x
+                            lastTouchY = event.y
+                        }
+                    }
+                    return true
                 }
                 return super.onTouchEvent(event)
             }
@@ -129,7 +163,13 @@ fun RacingSurfaceView(
 
         val thread = Thread({
             while (isLooping) {
-                if (!viewModel.isGamePaused) {
+                if (viewModel.currentScreen.value == GameScreen.REPLAY) {
+                    val nowNanos = SystemClock.elapsedRealtimeNanos()
+                    val frameTimeSec = ((nowNanos - lastTimeNanos) / 1_000_000_000.0f).coerceIn(0.001f, 0.05f)
+                    lastTimeNanos = nowNanos
+                    
+                    viewModel.updateReplay(frameTimeSec)
+                } else if (!viewModel.isGamePaused) {
                     val nowNanos = SystemClock.elapsedRealtimeNanos()
                     val frameTimeSec = ((nowNanos - lastTimeNanos) / 1_000_000_000.0f).coerceIn(0.001f, 0.05f)
                     lastTimeNanos = nowNanos

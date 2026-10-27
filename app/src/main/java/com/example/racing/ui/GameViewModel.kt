@@ -9,6 +9,7 @@ import com.example.racing.audio.ProceduralAudioEngine
 import com.example.racing.data.GameDataManager
 import com.example.racing.engine.RacingRenderer
 import com.example.racing.engine.Vector3f
+import com.example.racing.replay.ReplayManager
 import com.example.racing.model.CameraView
 import com.example.racing.model.CarDefinition
 import com.example.racing.model.CarUpgradeState
@@ -37,7 +38,8 @@ enum class GameScreen {
     SETTINGS,
     PROFILE,
     TRACKS,
-    CHAMPIONSHIP
+    CHAMPIONSHIP,
+    REPLAY
 }
 
 data class RaceTelemetryUiState(
@@ -75,6 +77,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     val dataManager = GameDataManager(application)
     val audioEngine = ProceduralAudioEngine()
+    val replayManager = ReplayManager()
 
     private val _currentScreen = MutableStateFlow(GameScreen.MAIN_MENU)
     val currentScreen: StateFlow<GameScreen> = _currentScreen.asStateFlow()
@@ -182,6 +185,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val reusableVehicleList = ArrayList<VehiclePhysics>(8)
     var renderer: RacingRenderer? = null
         private set
+
+    // Replay Playback State
+    private val _replayTimeMs = MutableStateFlow(0L)
+    val replayTimeMs: StateFlow<Long> = _replayTimeMs.asStateFlow()
+    
+    private val _isReplayPaused = MutableStateFlow(false)
+    val isReplayPaused: StateFlow<Boolean> = _isReplayPaused.asStateFlow()
+    
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+    
+    private val _isAutoCamera = MutableStateFlow(true)
+    val isAutoCamera: StateFlow<Boolean> = _isAutoCamera.asStateFlow()
+    
+    private val replayDirector = com.example.racing.replay.ReplayCameraDirector()
+    private var replayMaxTimeMs = 0L
 
     val raceTiming = RaceTiming()
     private var passedSector1 = false
@@ -307,6 +326,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun startRace(mode: RaceMode) {
         _activeRaceMode.value = mode
         _currentScreen.value = GameScreen.RACE
+        replayManager.startRecording()
+        replayManager.addEvent(com.example.racing.replay.ReplayEvent(com.example.racing.replay.ReplayEventType.RACE_START))
         renderer?.isShowroomMode = false
         renderer?.isMainMenuMode = false
 
@@ -495,6 +516,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             particleSystem = renderer?.particleSystem,
             onCollisionImpact = { intensity ->
                 audioEngine.triggerCollision(intensity)
+                replayManager.addEvent(com.example.racing.replay.ReplayEvent(com.example.racing.replay.ReplayEventType.COLLISION, intensity))
             }
         )
 
@@ -543,10 +565,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     passedSector1 = true
                     currentSectorIndex = 2
                     updateSectorDelta()
+                    replayManager.addEvent(com.example.racing.replay.ReplayEvent(com.example.racing.replay.ReplayEventType.CHECKPOINT))
                 } else if (passedSector1 && !passedSector2 && carP.distanceTo(sectors[2]) < 22f) {
                     passedSector2 = true
                     currentSectorIndex = 3
                     updateSectorDelta()
+                    replayManager.addEvent(com.example.racing.replay.ReplayEvent(com.example.racing.replay.ReplayEventType.CHECKPOINT))
                 } else if (passedSector2 && !passedSector3 && carP.distanceTo(sectors[0]) < 22f) {
                     passedSector3 = true
                 }
@@ -575,6 +599,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 if ((_activeRaceMode.value == RaceMode.CIRCUIT_RACE || _activeRaceMode.value == RaceMode.CHAMPIONSHIP) &&
                     raceTiming.currentLap >= raceTiming.totalLaps) {
                     raceTiming.raceFinished = true
+                    replayManager.addEvent(com.example.racing.replay.ReplayEvent(com.example.racing.replay.ReplayEventType.RACE_FINISH))
+                    replayManager.stopRecording()
                     val (finalPos, standings) = computeRaceStandings()
                     raceTiming.finishPosition = finalPos
                     lastRaceResults = standings
@@ -583,6 +609,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     raceTiming.currentLap++
                     raceTiming.currentLapTimeSec = 0f
+                    replayManager.addEvent(com.example.racing.replay.ReplayEvent(com.example.racing.replay.ReplayEventType.LAP_COMPLETE))
                 }
             }
         }
@@ -600,6 +627,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // Update real-time leaderboard
         val (_, currentStandings) = computeRaceStandings()
         _leaderboard.value = currentStandings
+
+        replayManager.record(this, raceTiming.currentLapTimeSec.toLong() * 1000)
 
         updateTelemetryState()
     }
@@ -1024,18 +1053,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         playerVehicle.reverseHoldTimer = 0f
     }
 
-    fun toggleCamera() {
-        val next = when (_cameraView.value) {
-            CameraView.CHASE_NEAR -> CameraView.CHASE_FAR
-            CameraView.CHASE_FAR -> CameraView.HOOD_BUMPER
-            CameraView.HOOD_BUMPER -> CameraView.COCKPIT
-            CameraView.COCKPIT -> CameraView.CHASE_NEAR
-        }
-        _cameraView.value = next
-        renderer?.currentCameraView = next
-        updateTelemetryState()
-    }
-
     fun openGarage() {
         navigateTo(GameScreen.GARAGE)
         renderer?.resetShowroomCamera()
@@ -1151,31 +1168,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         return (base0100 - (upgrades.engineStage * 0.18f) - (upgrades.weightReduction * 0.10f) - (upgrades.tireStage * 0.15f)).coerceAtLeast(1.9f)
     }
 
-    fun navigateTo(screen: GameScreen) {
-        resetDriverInputs()
-        _currentScreen.value = screen
-        when (screen) {
-            GameScreen.MAIN_MENU -> {
-                renderer?.isShowroomMode = true
-                renderer?.isMainMenuMode = true
-                renderer?.autoRotateShowroom = true
-            }
-            GameScreen.GARAGE -> {
-                renderer?.isShowroomMode = true
-                renderer?.isMainMenuMode = false
-                renderer?.autoRotateShowroom = false
-                renderer?.setCar(_selectedCar.value.id)
-                renderer?.playerPaintColor = getActiveColor()
-                renderer?.playerPaintFinish = _carPaintFinish.value
-            }
-            else -> {
-                renderer?.isShowroomMode = false
-                renderer?.isMainMenuMode = false
-                renderer?.autoRotateShowroom = false
-            }
-        }
-    }
-
     fun setControlType(type: ControlType) {
         _controlType.value = type
         dataManager.controlType = type
@@ -1268,6 +1260,157 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _cameraView.value = view
         renderer?.currentCameraView = view
         updateTelemetryState()
+    }
+
+    fun toggleCamera() {
+        val next = when (_cameraView.value) {
+            CameraView.CHASE_NEAR -> CameraView.CHASE_FAR
+            CameraView.CHASE_FAR -> CameraView.HOOD_BUMPER
+            CameraView.HOOD_BUMPER -> CameraView.COCKPIT
+            CameraView.COCKPIT -> CameraView.CHASE_NEAR
+            else -> CameraView.CHASE_NEAR
+        }
+        setCameraView(next)
+    }
+
+    fun navigateTo(screen: GameScreen) {
+        resetDriverInputs()
+        _currentScreen.value = screen
+        when (screen) {
+            GameScreen.MAIN_MENU -> {
+                renderer?.isShowroomMode = true
+                renderer?.isMainMenuMode = true
+                renderer?.autoRotateShowroom = true
+                renderer?.isReplayMode = false
+            }
+            GameScreen.GARAGE -> {
+                renderer?.isShowroomMode = true
+                renderer?.isMainMenuMode = false
+                renderer?.autoRotateShowroom = false
+                renderer?.setCar(_selectedCar.value.id)
+                renderer?.playerPaintColor = getActiveColor()
+                renderer?.playerPaintFinish = _carPaintFinish.value
+                renderer?.isReplayMode = false
+            }
+            GameScreen.REPLAY -> {
+                renderer?.isShowroomMode = false
+                renderer?.isReplayMode = true
+            }
+            else -> {
+                renderer?.isShowroomMode = false
+                renderer?.isMainMenuMode = false
+                renderer?.autoRotateShowroom = false
+                renderer?.isReplayMode = false
+            }
+        }
+    }
+
+    // =============================================================================================
+    // Phase 18: Replay System Logic
+    // =============================================================================================
+
+    private val _isPhotoMode = MutableStateFlow(false)
+    val isPhotoMode: StateFlow<Boolean> = _isPhotoMode.asStateFlow()
+
+    fun openReplay() {
+        val data = replayManager.getReplayData()
+        if (data.isEmpty()) return
+
+        replayMaxTimeMs = data.last().timestampMs
+        _replayTimeMs.value = 0L
+        _isReplayPaused.value = false
+        _playbackSpeed.value = 1.0f
+        _isAutoCamera.value = true
+        _isPhotoMode.value = false
+        
+        navigateTo(GameScreen.REPLAY)
+        
+        // Default replay camera
+        _cameraView.value = CameraView.CINEMATIC_TRACKSIDE
+        renderer?.currentCameraView = CameraView.CINEMATIC_TRACKSIDE
+        
+        replayDirector.reset()
+    }
+
+    fun closeReplay() {
+        renderer?.isReplayMode = false
+        _currentScreen.value = GameScreen.RACE_SUMMARY
+    }
+
+    fun updateReplay(dt: Float) {
+        if (_currentScreen.value != GameScreen.REPLAY) return
+
+        if (!_isReplayPaused.value) {
+            val speed = _playbackSpeed.value
+            val newTime = _replayTimeMs.value + (dt * 1000 * speed).toLong()
+            
+            if (newTime >= replayMaxTimeMs) {
+                _replayTimeMs.value = 0L // Loop replay
+            } else {
+                _replayTimeMs.value = newTime
+            }
+        }
+
+        // Push interpolated snapshot to renderer
+        val snapshot = replayManager.getInterpolatedSnapshot(_replayTimeMs.value)
+        renderer?.currentReplaySnapshot = snapshot
+
+        // Apply automatic camera direction
+        if (_isAutoCamera.value && !_isReplayPaused.value) {
+            val autoCam = replayDirector.update(_replayTimeMs.value, snapshot)
+            if (autoCam != null && autoCam != _cameraView.value) {
+                _cameraView.value = autoCam
+                renderer?.currentCameraView = autoCam
+            }
+        }
+    }
+
+    fun toggleReplayPause() {
+        _isReplayPaused.value = !_isReplayPaused.value
+    }
+
+    fun setReplayTime(timeMs: Long) {
+        _replayTimeMs.value = timeMs.coerceIn(0L, replayMaxTimeMs)
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        _playbackSpeed.value = speed
+    }
+
+    fun cycleReplayCamera(forward: Boolean = true) {
+        _isAutoCamera.value = false
+        val cameras = listOf(
+            CameraView.CHASE_NEAR,
+            CameraView.CHASE_FAR,
+            CameraView.CINEMATIC_TRACKSIDE,
+            CameraView.FRONT_TRACKING,
+            CameraView.REAR_TRACKING,
+            CameraView.OVERHEAD,
+            CameraView.FREE_ORBIT
+        )
+        val currentIndex = cameras.indexOf(_cameraView.value).coerceAtLeast(0)
+        val nextIndex = if (forward) {
+            (currentIndex + 1) % cameras.size
+        } else {
+            (currentIndex - 1 + cameras.size) % cameras.size
+        }
+        val nextCam = cameras[nextIndex]
+        _cameraView.value = nextCam
+        renderer?.currentCameraView = nextCam
+    }
+
+    fun toggleAutoCamera() {
+        _isAutoCamera.value = !_isAutoCamera.value
+    }
+
+    fun togglePhotoMode() {
+        _isPhotoMode.value = !_isPhotoMode.value
+        if (_isPhotoMode.value) {
+            _isReplayPaused.value = true
+            _cameraView.value = CameraView.FREE_ORBIT
+            renderer?.currentCameraView = CameraView.FREE_ORBIT
+            _isAutoCamera.value = false
+        }
     }
 
     fun onPause() {
