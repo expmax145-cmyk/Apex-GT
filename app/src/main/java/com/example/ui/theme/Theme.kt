@@ -6,16 +6,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val RacingDarkColorScheme = darkColorScheme(
-    primary = ApexRed,
-    secondary = ApexCyan,
-    tertiary = ApexGold,
-    background = ApexDarkBg,
-    surface = ApexSurface,
+    primary = MotorsportElectricBlue,
+    secondary = MotorsportCyan,
+    tertiary = MotorsportHighlightBlue,
+    background = MotorsportMidnight,
+    surface = MotorsportDarkNeutral,
     onPrimary = Color.White,
     onSecondary = Color.Black,
     onTertiary = Color.Black,
-    onBackground = ApexTextPrimary,
-    onSurface = ApexTextPrimary
+    onBackground = Color.White,
+    onSurface = Color.White
 )
 
 @Composable

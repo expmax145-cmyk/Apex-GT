@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.racing.model.ControlType
+import androidx.compose.ui.graphics.RectangleShape
+import com.example.ui.theme.*
 
 @Composable
 fun SettingsScreen(
@@ -75,7 +77,8 @@ fun SettingsScreen(
                     modifier = Modifier
                         .testTag("settings_back_button")
                         .size(44.dp)
-                        .background(Color(0xFF131A26), RoundedCornerShape(12.dp))
+                        .background(MotorsportGlass, ParallelogramShape(10f))
+                        .border(1.dp, MotorsportRacingBlue, ParallelogramShape(10f))
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -106,9 +109,9 @@ fun SettingsScreen(
                 ) {
                     // Graphics Preset
                     Surface(
-                        color = Color(0xFF101522),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -126,11 +129,11 @@ fun SettingsScreen(
                                 listOf("LOW", "MEDIUM", "HIGH").forEach { preset ->
                                     val isSelected = graphicsPreset == preset
                                     Surface(
-                                        color = if (isSelected) Color(0xFF1E2638) else Color(0xFF0A0E17),
-                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) MotorsportElectricBlue.copy(alpha = 0.3f) else MotorsportGlass,
+                                        shape = RectangleShape,
                                         border = androidx.compose.foundation.BorderStroke(
                                             1.dp,
-                                            if (isSelected) Color(0xFF00E5FF) else Color(0x22FFFFFF)
+                                            if (isSelected) MotorsportCyan else MotorsportRacingBlue
                                         ),
                                         modifier = Modifier
                                             .weight(1f)
@@ -138,7 +141,7 @@ fun SettingsScreen(
                                     ) {
                                         Text(
                                             text = preset,
-                                            color = if (isSelected) Color.White else Color(0xFF78909C),
+                                            color = if (isSelected) Color.White else MotorsportSteelBlue,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
@@ -152,9 +155,9 @@ fun SettingsScreen(
 
                     // Time of Day Selector
                     Surface(
-                        color = Color(0xFF101522),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -191,7 +194,7 @@ fun SettingsScreen(
                                     ) {
                                         Text(
                                             text = label,
-                                            color = if (isSelected) Color(0xFFFF9100) else Color(0xFF78909C),
+                                            color = if (isSelected) Color(0xFFFF9100) else MotorsportSteelBlue,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
@@ -205,9 +208,9 @@ fun SettingsScreen(
 
                     // Weather Condition Selector
                     Surface(
-                        color = Color(0xFF101522),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -257,9 +260,9 @@ fun SettingsScreen(
 
                     // Steering Control Scheme
                     Surface(
-                        color = Color(0xFF101522),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -281,8 +284,8 @@ fun SettingsScreen(
                                 ).forEach { (type, label) ->
                                     val isSelected = controlType == type
                                     Surface(
-                                        color = if (isSelected) Color(0xFF1E2638) else Color(0xFF0A0E17),
-                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) MotorsportElectricBlue.copy(alpha = 0.3f) else MotorsportGlass,
+                                        shape = RectangleShape,
                                         border = androidx.compose.foundation.BorderStroke(
                                             1.dp,
                                             if (isSelected) Color(0xFFFF3D00) else Color(0x22FFFFFF)
@@ -338,8 +341,8 @@ fun SettingsScreen(
                                 },
                                 valueRange = 0.5f..2.0f,
                                 colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF00E5FF),
-                                    activeTrackColor = Color(0xFF00E5FF),
+                                    thumbColor = MotorsportCyan,
+                                    activeTrackColor = MotorsportCyan,
                                     inactiveTrackColor = Color(0xFF1B2332)
                                 )
                             )
@@ -354,9 +357,9 @@ fun SettingsScreen(
                 ) {
                     // Audio Volume
                     Surface(
-                        color = Color(0xFF101522),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -378,8 +381,8 @@ fun SettingsScreen(
                                         viewModel.toggleMute(isMuted)
                                     },
                                     colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color(0xFF00E5FF),
-                                        checkedTrackColor = Color(0xFF1E2638)
+                                        checkedThumbColor = MotorsportCyan,
+                                        checkedTrackColor = MotorsportElectricBlue.copy(alpha = 0.3f)
                                     )
                                 )
                             }
@@ -401,9 +404,9 @@ fun SettingsScreen(
 
                     // Tech Spec Card
                     Surface(
-                        color = Color(0xFF101522),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -425,9 +428,9 @@ fun SettingsScreen(
 
                     // Development & Debug Mode Card
                     Surface(
-                        color = Color(0xFF101522),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF)),
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportCyan),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -445,8 +448,8 @@ fun SettingsScreen(
                             ) {
                                 Button(
                                     onClick = { viewModel.grantDevelopmentFunds(500000) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2638)),
-                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MotorsportGlass),
+                                    shape = RectangleShape,
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("dev_add_funds_settings")
@@ -455,8 +458,8 @@ fun SettingsScreen(
                                 }
                                 Button(
                                     onClick = { viewModel.setUnlimitedFunds() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2638)),
-                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MotorsportGlass),
+                                    shape = RectangleShape,
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("dev_unlimited_funds_settings")
@@ -465,8 +468,8 @@ fun SettingsScreen(
                                 }
                                 Button(
                                     onClick = { viewModel.unlockAllCarsForDevelopment() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2638)),
-                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MotorsportGlass),
+                                    shape = RectangleShape,
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("dev_unlock_all_settings")

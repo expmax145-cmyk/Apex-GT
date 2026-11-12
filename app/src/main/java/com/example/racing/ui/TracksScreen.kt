@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -17,15 +16,23 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.racing.model.TrackId
+import com.example.ui.theme.*
 
+/**
+ * Redesigned Track Selection Screen with vertical 3:4 cards and premium motorsport aesthetic.
+ */
 @Composable
 fun TracksScreen(
     viewModel: GameViewModel,
@@ -36,42 +43,55 @@ fun TracksScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF05080E)
+        color = MotorsportMidnight
     ) {
         Column(
             modifier = Modifier
                 .padding(safeInsets)
                 .padding(24.dp)
         ) {
+            // Header with Back button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 24.dp)
+                modifier = Modifier.padding(bottom = 32.dp)
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
+                Surface(
+                    onClick = onBack,
+                    color = MotorsportGlass,
+                    shape = ParallelogramShape(10f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
+                    modifier = Modifier.size(width = 80.dp, height = 48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
+                
+                Spacer(modifier = Modifier.width(24.dp))
+                
                 Text(
-                    text = "SELECT TRACK",
+                    text = "WORLD TRACK REGISTRY",
                     color = Color.White,
-                    fontSize = 24.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp
                 )
             }
 
+            // Track Cards Grid
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(160.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
+                columns = GridCells.Adaptive(220.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 items(TrackId.values()) { track ->
-                    TrackCard(
+                    TrackSelectionCard(
                         track = track,
                         isSelected = track == selectedTrack,
                         onClick = { viewModel.selectTrack(track) }
@@ -83,48 +103,101 @@ fun TracksScreen(
 }
 
 @Composable
-private fun TrackCard(
+private fun TrackSelectionCard(
     track: TrackId,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
     val trackImage = when (track) {
-        TrackId.ALPINE_PASS -> R.drawable.ic_track_alpine
-        TrackId.NEON_METROPOLIS -> R.drawable.ic_track_neon
-        else -> R.drawable.ic_track_gp
+        TrackId.GRAND_PRIX -> R.drawable.track_gp_circuit
+        TrackId.COASTAL_SPRINT -> R.drawable.track_coastal_sprint
+        TrackId.ALPINE_PASS -> R.drawable.track_alpine_pass
+        TrackId.DESERT_RUN -> R.drawable.track_desert_run
+        TrackId.FOREST_DRIVE -> R.drawable.track_forest_drive
+        TrackId.NEON_METROPOLIS -> R.drawable.track_neon_metropolis
+        TrackId.COUNTRYSIDE_RUN -> R.drawable.track_countryside_run
+        TrackId.INDUSTRIAL_ROUTE -> R.drawable.track_industrial_route
+        TrackId.CANYON_CHALLENGE -> R.drawable.track_canyon_challenge
     }
 
     Surface(
-        color = if (isSelected) Color(0x330066FF) else Color(0xDD0D131E),
+        color = if (isSelected) MotorsportElectricBlue.copy(alpha = 0.15f) else MotorsportGlass,
         shape = RectangleShape,
         border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) Color(0xFF0066FF) else Color(0x2BFFFFFF)
+            1.5.dp,
+            if (isSelected) MotorsportCyan else MotorsportRacingBlue.copy(alpha = 0.5f)
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(0.75f)
+            .aspectRatio(0.75f) // 3:4 Portrait Ratio
             .clickable(onClick = onClick)
+            .testTag("track_card_${track.name.lowercase()}")
     ) {
         Column {
-            Image(
-                painter = painterResource(id = trackImage),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
-            Column(modifier = Modifier.padding(12.dp)) {
+            // Track Image with top-down fade
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Image(
+                    painter = painterResource(id = trackImage),
+                    contentDescription = track.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                
+                // Highlight overlay for selected state
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .border(4.dp, MotorsportCyan, RectangleShape)
+                            .background(MotorsportCyan.copy(alpha = 0.1f))
+                    )
+                }
+            }
+
+            // Track Details
+            Column(
+                modifier = Modifier
+                    .background(MotorsportMidnight.copy(alpha = 0.8f))
+                    .padding(16.dp)
+            ) {
                 Text(
-                    text = track.title,
+                    text = track.title.uppercase(),
                     color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp
                 )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
                 Text(
-                    text = "${track.lengthKm} KM • ${track.difficulty} • ${track.turns} TURNS",
-                    color = Color(0xFF7E8B9B),
-                    fontSize = 10.sp
+                    text = track.subtitle,
+                    color = ApexTextSecondary,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp
                 )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Technical Stats
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(text = "DISTANCE", color = MotorsportCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "${track.lengthKm} KM", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    }
+                    Column {
+                        Text(text = "DIFFICULTY", color = MotorsportCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(text = track.difficulty.uppercase(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    }
+                    Column {
+                        Text(text = "TURNS", color = MotorsportCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "${track.turns}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    }
+                }
             }
         }
     }

@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.racing.model.CarDefinition
 import com.example.racing.model.TrackId
+import androidx.compose.ui.graphics.RectangleShape
+import com.example.ui.theme.*
 
 /**
  * Phase 15: Premium Racing Player Profile Screen
@@ -122,8 +124,8 @@ fun ProfileScreen(
                         onClick = { viewModel.navigateTo(GameScreen.MAIN_MENU) },
                         modifier = Modifier
                             .size(48.dp)
-                            .background(Color(0xFF131B2E), RoundedCornerShape(12.dp))
-                            .border(1.dp, Color(0xFF233250), RoundedCornerShape(12.dp))
+                            .background(MotorsportGlass, ParallelogramShape(10f))
+                            .border(1.dp, MotorsportRacingBlue, ParallelogramShape(10f))
                             .testTag("back_to_menu_button")
                     ) {
                         Icon(
@@ -137,7 +139,7 @@ fun ProfileScreen(
                         modifier = Modifier
                             .width(4.dp)
                             .height(28.dp)
-                            .background(Color(0xFFFF3823), RoundedCornerShape(2.dp))
+                            .background(MotorsportElectricBlue, RectangleShape)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
@@ -159,9 +161,9 @@ fun ProfileScreen(
 
                 // Credits Badge
                 Surface(
-                    color = Color(0xFF131B2E),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF233250))
+                    color = MotorsportGlass,
+                    shape = ParallelogramShape(8f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -199,9 +201,9 @@ fun ProfileScreen(
                 // 1. Driver Credentials Card
                 item {
                     Surface(
-                        color = Color(0xFF0E1524),
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF223250))
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue)
                     ) {
                         Column(
                             modifier = Modifier
@@ -264,7 +266,7 @@ fun ProfileScreen(
                                                     },
                                                     modifier = Modifier
                                                         .size(40.dp)
-                                                        .background(Color(0xFFFF3823), RoundedCornerShape(8.dp))
+                                                        .background(MotorsportElectricBlue, RectangleShape)
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.Check,
@@ -319,9 +321,9 @@ fun ProfileScreen(
 
                                 // Level Badge Box
                                 Surface(
-                                    color = Color(0xFF162035),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2C3E63))
+                                    color = MotorsportGlass,
+                                    shape = RectangleShape,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue)
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -370,7 +372,7 @@ fun ProfileScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
+                                        .clip(RectangleShape),
                                     color = Color(0xFFFF3823),
                                     trackColor = Color(0xFF162035),
                                 )
@@ -463,9 +465,9 @@ fun ProfileScreen(
                 item {
                     // Trophies Row
                     Surface(
-                        color = Color(0xFF0E1524),
-                        shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF223250))
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue)
                     ) {
                         Row(
                             modifier = Modifier
@@ -507,9 +509,9 @@ fun ProfileScreen(
 
                 item {
                     Surface(
-                        color = Color(0xFF0E1524),
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF223250))
+                        color = MotorsportGlass,
+                        shape = RectangleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue)
                     ) {
                         Row(
                             modifier = Modifier
@@ -546,7 +548,7 @@ fun ProfileScreen(
                                     containerColor = Color(0xFFFF3823),
                                     contentColor = Color.White
                                 ),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = ParallelogramShape(8f)
                             ) {
                                 Text(
                                     text = "OPEN GARAGE",
@@ -572,9 +574,9 @@ private fun StatCard(
 ) {
     Surface(
         modifier = modifier,
-        color = Color(0xFF0E1524),
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF223250))
+        color = MotorsportGlass,
+        shape = RectangleShape,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

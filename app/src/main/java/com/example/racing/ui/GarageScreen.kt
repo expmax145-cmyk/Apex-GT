@@ -58,6 +58,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.RectangleShape
+import com.example.ui.theme.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -157,8 +159,8 @@ fun GarageScreen(
                     modifier = Modifier
                         .testTag("garage_back_button")
                         .size(42.dp)
-                        .background(Color(0xD90B101A), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
+                        .background(MotorsportGlass, ParallelogramShape(10f))
+                        .border(1.dp, MotorsportRacingBlue, ParallelogramShape(10f))
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -174,7 +176,7 @@ fun GarageScreen(
                     modifier = Modifier
                         .width(4.dp)
                         .height(if (isShortHeight) 24.dp else 30.dp)
-                        .background(Color(0xFFFF3823), RoundedCornerShape(2.dp))
+                        .background(MotorsportElectricBlue, RectangleShape)
                 )
 
                 Spacer(modifier = Modifier.width(10.dp))
@@ -189,7 +191,7 @@ fun GarageScreen(
                     )
                     Text(
                         text = "MOTORSPORT CUSTOMIZATION & TUNING",
-                        color = Color(0xFF00E5FF),
+                        color = MotorsportCyan,
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -211,8 +213,8 @@ fun GarageScreen(
                     modifier = Modifier
                         .testTag("reset_camera_button")
                         .size(36.dp)
-                        .background(Color(0xD90B101A), CircleShape)
-                        .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                        .background(MotorsportGlass, RectangleShape)
+                        .border(1.dp, MotorsportRacingBlue, RectangleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
@@ -234,7 +236,7 @@ fun GarageScreen(
                             if (isAutoRotateActive) Color(0xFF00E5FF) else Color(0xD90B101A),
                             CircleShape
                         )
-                        .border(1.dp, if (isAutoRotateActive) Color.White else Color(0x33FFFFFF), CircleShape)
+                        .border(1.dp, if (isAutoRotateActive) Color.White else MotorsportRacingBlue, RectangleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Sync,
@@ -285,9 +287,9 @@ fun GarageScreen(
 
                 // Credits Balance Pill
                 Surface(
-                    color = Color(0xEE0B101A),
-                    shape = RoundedCornerShape(18.dp),
-                    border = BorderStroke(1.dp, Color(0x44FFB300))
+                    color = MotorsportGlass,
+                    shape = ParallelogramShape(10f),
+                    border = BorderStroke(1.dp, Color(0xFFFFD700))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
@@ -296,7 +298,7 @@ fun GarageScreen(
                         Box(
                             modifier = Modifier
                                 .size(16.dp)
-                                .background(Color(0xFFFFB300), CircleShape),
+                                .background(Color(0xFFFFD700), RectangleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -324,7 +326,7 @@ fun GarageScreen(
                         .testTag("dev_add_funds_button")
                         .height(34.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
-                    shape = RoundedCornerShape(17.dp),
+                    shape = ParallelogramShape(10f),
                     contentPadding = PaddingValues(horizontal = 11.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -342,9 +344,9 @@ fun GarageScreen(
         // 2. FLOATING VEHICLE QUICK BADGE (Top-Left under top bar)
         // =========================================================================================
         Surface(
-            color = Color(0xD90B101A),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+            color = MotorsportGlass,
+            shape = AngledCornerShape(12f),
+            border = BorderStroke(1.dp, MotorsportRacingBlue),
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(
@@ -426,9 +428,9 @@ fun GarageScreen(
         // 3. LOWER AUTOMOTIVE CONTROL DOCK: Tabs, Subpanel Content & Race Launch
         // =========================================================================================
         Surface(
-            color = Color(0xF2070B13),
-            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-            border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+            color = MotorsportGlass,
+            shape = RectangleShape,
+            border = BorderStroke(1.dp, MotorsportRacingBlue),
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
@@ -522,7 +524,7 @@ fun GarageScreen(
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isUnlocked) Color(0xFFFF3823) else Color(0xFFFFB300)
                             ),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = ParallelogramShape(8f),
                             contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
                             Icon(
@@ -610,9 +612,9 @@ fun GarageScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Surface(
-                            color = Color(0xFF0A0E18),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0x22FFFFFF)),
+                            color = MotorsportGlass,
+                            shape = RectangleShape,
+                            border = BorderStroke(1.dp, MotorsportRacingBlue),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -654,7 +656,7 @@ fun GarageScreen(
                         },
                         enabled = canAfford,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3823)),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RectangleShape,
                         modifier = Modifier.testTag("confirm_purchase_button")
                     ) {
                         Text("CONFIRM PURCHASE", fontWeight = FontWeight.Black, color = Color.White)
@@ -668,8 +670,8 @@ fun GarageScreen(
                         Text("CANCEL", color = Color(0xFF90A4AE), fontWeight = FontWeight.Bold)
                     }
                 },
-                containerColor = Color(0xFF111824),
-                shape = RoundedCornerShape(16.dp)
+                containerColor = MotorsportMidnight,
+                shape = RectangleShape
             )
         }
     }
@@ -684,12 +686,12 @@ private fun CameraAngleChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val bg by animateColorAsState(if (isSelected) Color(0x3300E5FF) else Color(0xD90B101A))
-    val borderCol by animateColorAsState(if (isSelected) Color(0xFF00E5FF) else Color(0x28FFFFFF))
+    val bg by animateColorAsState(if (isSelected) MotorsportElectricBlue.copy(alpha = 0.3f) else MotorsportGlass)
+    val borderCol by animateColorAsState(if (isSelected) MotorsportCyan else MotorsportRacingBlue)
 
     Surface(
         color = bg,
-        shape = RoundedCornerShape(8.dp),
+        shape = RectangleShape,
         border = BorderStroke(1.dp, borderCol),
         modifier = Modifier.clickable(onClick = onClick)
     ) {
@@ -715,13 +717,13 @@ private fun GarageTabButton(
     modifier: Modifier = Modifier,
     isShort: Boolean = false
 ) {
-    val bg by animateColorAsState(if (selected) Color(0xFF1B2436) else Color(0xFF0E131E))
-    val borderCol by animateColorAsState(if (selected) Color(0xFF00E5FF) else Color(0x22FFFFFF))
-    val contentCol by animateColorAsState(if (selected) Color(0xFF00E5FF) else Color(0xFF7E8B9B))
+    val bg by animateColorAsState(if (selected) MotorsportElectricBlue.copy(alpha = 0.2f) else MotorsportGlass)
+    val borderCol by animateColorAsState(if (selected) MotorsportCyan else MotorsportRacingBlue)
+    val contentCol by animateColorAsState(if (selected) MotorsportCyan else Color(0xFF7E8B9B))
 
     Surface(
         color = bg,
-        shape = RoundedCornerShape(10.dp),
+        shape = ParallelogramShape(8f),
         border = BorderStroke(1.dp, borderCol),
         modifier = modifier
             .height(if (isShort) 38.dp else 42.dp)
@@ -772,9 +774,9 @@ private fun TrackSelectorButton(
     }
 
     Surface(
-        color = Color(0xFF0E1420),
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, trackColor.copy(alpha = 0.45f)),
+        color = MotorsportGlass,
+        shape = ParallelogramShape(8f),
+        border = BorderStroke(1.dp, trackColor.copy(alpha = 0.7f)),
         modifier = modifier
             .testTag("track_selector_button")
             .height(if (isShort) 38.dp else 42.dp)
@@ -847,7 +849,7 @@ private fun FleetSelectionSubpanel(
 
             Surface(
                 color = if (isSelected) Color(0xFF161F2E) else Color(0xFF0C111A),
-                shape = RoundedCornerShape(10.dp),
+                shape = RectangleShape,
                 border = borderStroke,
                 modifier = Modifier
                     .weight(1f)
@@ -1105,7 +1107,7 @@ private fun PaintCustomizerSubpanel(
                     val isSelected = finish == selectedFinish
                     Surface(
                         color = if (isSelected) Color(0xFF1E283C) else Color(0xFF0E131E),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RectangleShape,
                         border = BorderStroke(
                             1.dp,
                             if (isSelected) Color(0xFF00E5FF) else Color(0x22FFFFFF)
@@ -1203,7 +1205,7 @@ private fun TunerCard(
 ) {
     Surface(
         color = Color(0xFF0F1420),
-        shape = RoundedCornerShape(10.dp),
+        shape = RectangleShape,
         border = BorderStroke(1.dp, Color(0x22FFFFFF)),
         modifier = modifier
     ) {
@@ -1238,7 +1240,7 @@ private fun TunerCard(
                     containerColor = Color(0xFF1B2436),
                     disabledContainerColor = Color(0xFF0A0D15)
                 ),
-                shape = RoundedCornerShape(6.dp),
+                shape = RectangleShape,
                 modifier = Modifier.height(26.dp),
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
             ) {

@@ -36,7 +36,7 @@ class RacingRenderer(
     fun resetShowroomCamera() {
         showroomOrbitAngleDeg = 45f
         showroomElevationDeg = 16f
-        showroomZoomDistance = 5.4f
+        showroomZoomDistance = 6.2f
     }
 
     fun toggleAutoRotate(): Boolean {
@@ -49,7 +49,7 @@ class RacingRenderer(
             "HERO_3_4" -> {
                 showroomOrbitAngleDeg = 45f
                 showroomElevationDeg = 16f
-                showroomZoomDistance = 5.4f
+                showroomZoomDistance = 6.2f
             }
             "SIDE" -> {
                 showroomOrbitAngleDeg = 90f

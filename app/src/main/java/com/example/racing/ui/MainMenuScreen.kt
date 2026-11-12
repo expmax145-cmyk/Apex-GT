@@ -1,88 +1,40 @@
 package com.example.racing.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import com.example.R
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Landscape
-import androidx.compose.material.icons.filled.LocationCity
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.MilitaryTech
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.racing.model.CarDefinition
+import com.example.R
 import com.example.racing.model.RaceMode
-import com.example.racing.model.TrackId
+import com.example.ui.theme.*
 
 /**
- * Phase 14: Premium Motorsport Main Menu & Cinematic Automotive Showcase
- *
- * Designed to provide a photorealistic, immersive gateway into Apex GT.
- * Integrates live OpenGL ES 3.0 hero turntable rendering underneath frosted
- * dark-carbon telemetry panels, with responsive landscape navigation across
- * varied mobile screen aspect ratios.
+ * Redesigned Main Menu with sharp motorsport geometry and premium blue 3D theme.
  */
 @Composable
 fun MainMenuScreen(
@@ -92,351 +44,221 @@ fun MainMenuScreen(
     val credits by viewModel.playerCredits.collectAsState()
     val playerName by viewModel.playerName.collectAsState()
     val playerLevel by viewModel.playerLevel.collectAsState()
-    val selectedCar by viewModel.selectedCar.collectAsState()
-    val selectedTrack by viewModel.selectedTrack.collectAsState()
-    val timeOfDay by viewModel.timeOfDay.collectAsState()
-    val weatherCondition by viewModel.weatherCondition.collectAsState()
-    val upgrades by viewModel.carUpgrades.collectAsState()
-    val activeChamp by viewModel.activeChampionship.collectAsState()
+    
     val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            // Directional vignette: deep obsidian scrim on the left for contrast and menu readability,
-            // opening up to crystal-clear 3D hero vehicle viewport on the right.
-            .background(
-                Brush.horizontalGradient(
-                    0.00f to Color(0xF205080E),
-                    0.42f to Color(0xDC080D16),
-                    0.65f to Color(0x66080D16),
-                    1.00f to Color(0x1A080D16)
-                )
-            )
-            .padding(safeInsets)
+            .background(MotorsportMidnight)
     ) {
-        val isCompactWidth = maxWidth < 760.dp
-        val isShortHeight = maxHeight < 400.dp
-        val hPadding = if (isCompactWidth) 14.dp else 24.dp
-        val vPadding = if (isShortHeight) 8.dp else 14.dp
+        // 3D Car Showcase (Background)
+        RacingSurfaceView(
+            viewModel = viewModel,
+            modifier = Modifier.fillMaxSize()
+        )
 
-        Column(
+        // Subtle gradient overlay
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = hPadding, vertical = vPadding)
+                .background(
+                    Brush.verticalGradient(
+                        0f to MotorsportMidnight.copy(alpha = 0.4f),
+                        0.2f to Color.Transparent,
+                        0.8f to Color.Transparent,
+                        1f to MotorsportMidnight.copy(alpha = 0.5f)
+                    )
+                )
+        )
+
+        // Main UI Layer
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(safeInsets)
+                .padding(24.dp)
         ) {
-            // ─────────────────────────────────────────────────────────────
-            // TOP STATUS & BRANDING BAR
-            // ─────────────────────────────────────────────────────────────
-            ProfileAndEconomyBar(
-                credits = credits,
-                playerName = playerName,
-                playerLevel = playerLevel,
-                isCompact = isCompactWidth,
-                onAddFunds = { viewModel.grantDevelopmentFunds() },
-                onOpenSettings = { viewModel.navigateTo(GameScreen.SETTINGS) },
-                onOpenProfile = { viewModel.navigateTo(GameScreen.PROFILE) }
+            // TOP-LEFT: Player Profile
+            PlayerProfilePanel(
+                name = playerName,
+                level = playerLevel,
+                onClick = { viewModel.navigateTo(GameScreen.PROFILE) },
+                modifier = Modifier.align(Alignment.TopStart)
             )
 
-            Spacer(modifier = Modifier.height(if (isShortHeight) 6.dp else 12.dp))
-
-        // Middle Area: Car Showcase UI (Center), Garage+Tracks+Start (Right)
-        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-            // Car Showcase (Center)
-            RacingSurfaceView(
-                viewModel = viewModel,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Controls (Right)
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 24.dp),
-                horizontalAlignment = Alignment.End
+            // TOP-RIGHT: Currency and Settings
+            Row(
+                modifier = Modifier.align(Alignment.TopEnd),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Active Championship Resume Pill
-                activeChamp?.let { champ ->
-                    Surface(
-                        onClick = { viewModel.resumeActiveChampionship() },
-                        color = Color(0xEE0B1526),
-                        shape = RectangleShape,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF)),
-                        modifier = Modifier
-                            .testTag("menu_resume_championship_pill")
-                            .padding(bottom = 10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.EmojiEvents,
-                                contentDescription = null,
-                                tint = Color(0xFFFFD700),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "RESUME ${champ.tier.title.uppercase()} • ROUND ${champ.currentRoundIndex + 1}/${champ.totalRounds}",
-                                color = Color(0xFF00E5FF),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                        }
-                    }
+                CurrencyDisplay(credits = credits)
+                
+                IconButton(
+                    onClick = { viewModel.navigateTo(GameScreen.SETTINGS) },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(MotorsportGlass, RectangleShape)
+                        .border(1.dp, MotorsportRacingBlue, RectangleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White
+                    )
                 }
+            }
+
+            // BOTTOM-RIGHT: Tracks, Garage, Start
+            Column(
+                modifier = Modifier.align(Alignment.BottomEnd),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MotorsportButton(
+                    onClick = { viewModel.navigateTo(GameScreen.TRACKS) },
+                    text = "TRACKS",
+                    accentColor = MotorsportElectricBlue,
+                    modifier = Modifier.testTag("menu_tracks_button")
+                )
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Bottom
                 ) {
-                    MotorsportButton(
-                        onClick = { viewModel.navigateTo(GameScreen.CHAMPIONSHIP) },
-                        text = "CHAMPIONSHIP",
-                        accentColor = Color(0xFF00E5FF),
-                        modifier = Modifier.testTag("menu_championship_button")
-                    )
-                    MotorsportButton(
-                        onClick = { viewModel.navigateTo(GameScreen.TRACKS) },
-                        text = "TRACKS",
-                        modifier = Modifier.testTag("menu_tracks_button")
-                    )
                     MotorsportButton(
                         onClick = { viewModel.navigateTo(GameScreen.GARAGE) },
                         text = "GARAGE",
+                        accentColor = MotorsportRacingBlue,
                         modifier = Modifier.testTag("menu_garage_button")
                     )
+
                     MotorsportButton(
                         onClick = { viewModel.startRace(RaceMode.CIRCUIT_RACE) },
-                        text = "RACE",
+                        text = "START",
                         accentColor = Color(0xFFFF3823),
                         modifier = Modifier.testTag("menu_start_button")
                     )
                 }
             }
         }
-        }
     }
 }
 
-/**
- * Top menu bar with player profile, currency, and settings.
- */
 @Composable
-private fun ProfileAndEconomyBar(
-    credits: Int,
-    playerName: String,
-    playerLevel: Int,
-    isCompact: Boolean,
-    onAddFunds: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenProfile: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Profile
-        Surface(
-            color = Color(0xDD0D131E),
-            shape = RectangleShape,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2BFFFFFF)),
-            modifier = Modifier.clickable(onClick = onOpenProfile)
-        ) {
-            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Avatar
-                Image(
-                    painter = painterResource(id = R.drawable.ic_avatar_14),
-                    contentDescription = "Racer Avatar",
-                    modifier = Modifier.size(32.dp),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(text = playerName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(text = "LEVEL $playerLevel", color = Color(0xFF7E8B9B), fontSize = 10.sp)
-                }
-            }
-        }
-
-        // Money + Settings
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(
-                color = Color(0xDD0D131E),
-                shape = RectangleShape,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x44FFB300)),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(text = "$%,d".format(credits), color = Color(0xFFFFB300), modifier = Modifier.padding(12.dp, 6.dp), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
-            IconButton(onClick = onOpenSettings, modifier = Modifier.background(Color(0xDD0D131E), RectangleShape)) {
-                Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-            }
-        }
-    }
-}
-
-// ... (rest of the file components)
-
-/**
- * Reusable Cinematic Motorsport Mode Card with tactical styling.
- */
-@Composable
-fun CinematicModeCard(
-    title: String,
-    subtitle: String,
-    tag: String,
-    icon: ImageVector,
-    accentColor: Color,
+private fun PlayerProfilePanel(
+    name: String,
+    level: Int,
     onClick: () -> Unit,
-    testTag: String,
-    isShort: Boolean = false
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color(0xDD0D131E),
-        shape = RectangleShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2BFFFFFF)),
-        modifier = Modifier
-            .testTag(testTag)
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = accentColor),
-                onClick = onClick
-            )
+        onClick = onClick,
+        color = MotorsportGlass,
+        shape = ParallelogramShape(10f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MotorsportRacingBlue),
+        modifier = modifier.testTag("menu_profile_panel")
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = if (isShort) 8.dp else 10.dp),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon Pill
-            Box(
+            Image(
+                painter = painterResource(id = R.drawable.avatar_racer_1),
+                contentDescription = "Player Avatar",
                 modifier = Modifier
-                    .size(if (isShort) 36.dp else 40.dp)
-                    .background(accentColor.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
-                    .border(1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = accentColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = if (isShort) 13.sp else 15.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        color = accentColor.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(3.dp)
-                    ) {
-                        Text(
-                            text = tag,
-                            color = accentColor,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                        )
-                    }
-                }
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, MotorsportCyan, CircleShape),
+                contentScale = ContentScale.Crop
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column {
                 Text(
-                    text = subtitle,
-                    color = Color(0xFF8A99A8),
-                    fontSize = 10.sp,
-                    maxLines = 1
+                    text = name.uppercase(),
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp,
+                    letterSpacing = 1.sp
                 )
-            }
-
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(accentColor.copy(alpha = 0.12f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Launch",
-                    tint = accentColor,
-                    modifier = Modifier.size(16.dp)
+                Text(
+                    text = "LEVEL $level",
+                    color = MotorsportCyan,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
                 )
             }
         }
     }
 }
 
-/**
- * Telemetry spec row displaying title, bar meter, and numerical value.
- */
 @Composable
-fun StatRow(
-    name: String,
-    value: Float,
-    display: String,
-    accentColor: Color = Color(0xFFFF3823)
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun CurrencyDisplay(credits: Int) {
+    Surface(
+        color = MotorsportGlass,
+        shape = ParallelogramShape(10f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700)),
+        modifier = Modifier.testTag("menu_currency_display")
     ) {
-        Text(
-            text = name,
-            color = Color(0xFF7E8B9B),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(76.dp)
-        )
-        LinearProgressIndicator(
-            progress = { value.coerceIn(0f, 1f) },
-            modifier = Modifier
-                .weight(1f)
-                .height(4.dp)
-                .padding(horizontal = 8.dp),
-            color = accentColor,
-            trackColor = Color(0xFF182232)
-        )
-        Text(
-            text = display,
-            color = Color.White,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "CR",
+                color = Color(0xFFFFD700),
+                fontWeight = FontWeight.Black,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+            Text(
+                text = "$%,d".format(credits),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+        }
     }
 }
+
 @Composable
 fun MotorsportButton(
     onClick: () -> Unit,
     text: String,
     modifier: Modifier = Modifier,
-    accentColor: Color = Color(0xFF0066FF)
+    accentColor: Color = MotorsportElectricBlue
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    
     Surface(
         onClick = onClick,
-        color = Color(0xDD0D131E),
-        shape = RectangleShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
+        color = MotorsportGlass,
+        shape = ParallelogramShape(12f),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, accentColor),
+        interactionSource = interactionSource,
         modifier = modifier
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
+        Box(
+            modifier = Modifier.padding(horizontal = 32.dp, vertical = 14.dp)
+        ) {
             Text(
-                text = text,
+                text = text.uppercase(),
                 color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                letterSpacing = 1.sp
+                fontWeight = FontWeight.Black,
+                fontSize = 18.sp,
+                letterSpacing = 2.sp,
+                modifier = Modifier.align(Alignment.Center)
+            )
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(accentColor.copy(alpha = 0.3f))
             )
         }
     }
